@@ -1,0 +1,14 @@
+SYSTEM PROMPT: 
+
+In CS422-Sagent-Frontend folder, we are building a frontend for the backend located in CS422-Sagent-Backend.
+
+Please first read the project structure and the instructions & notes in AGENT.md. Always do this before doing anything else.
+Always follow the instructions in AGENT.md, they are the key component to create a nice frontend.
+
+------------------------------------------
+
+USER PROMPT:
+
+Currently the button "Paper dicovery", "workspace", ... do not lead to a proper page. pls fix that.
+
+The target is that when clicking them, they will lead to a screen (can be blank)
