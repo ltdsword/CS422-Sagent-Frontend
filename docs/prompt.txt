@@ -5,10 +5,23 @@ In CS422-Sagent-Frontend folder, we are building a frontend for the backend loca
 Please first read the project structure and the instructions & notes in AGENT.md. Always do this before doing anything else.
 Always follow the instructions in AGENT.md, they are the key component to create a nice frontend.
 
+Before doing anything with this frontend, please use the command
+
+cd CS422-Sagent-Frontend
+
+to navigate to the correct folder.
+
 ------------------------------------------
 
 USER PROMPT:
 
-Currently the button "Paper dicovery", "workspace", ... do not lead to a proper page. pls fix that.
+We are currently having these bugs:
 
-The target is that when clicking them, they will lead to a screen (can be blank)
+1. The UI is nice and identical to our images/. However, when i clicked in Paper Discovery, workspace and Synthesis Lab
+in the sidebar, it does not display anything. What is the issue? Does the path correct?
+
+2. In clicking "Workspace", we can see the url http://localhost:5173/projects; which is mismatching because we wanna change this into "workspace"
+
+Pls read the code, resolve the problem and fix the code so that it can run.
+
+And pls check for other path, does they correct?

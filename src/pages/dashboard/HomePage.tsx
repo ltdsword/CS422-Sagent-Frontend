@@ -1,101 +1,216 @@
-import ProjectCard from '../../features/workspaces/components/ProjectCard';
-import { Sparkles, Plus, ArrowRight } from 'lucide-react';
+import { Link } from "react-router";
+import { FileText, Clock, Sparkles, TrendingUp, AlertCircle, FlaskConical, Network, Search } from "lucide-react";
 
-export default function HomePage() {
+export function Dashboard() {
+  const projects = [
+    {
+      id: 1,
+      title: "AI in Healthcare",
+      paperCount: 47,
+      lastActivity: "2 hours ago",
+      agentStatus: "Critic Agent: Reviewing Consistency",
+      agentType: "critic",
+      color: "blue"
+    },
+    {
+      id: 2,
+      title: "Climate Change ML Models",
+      paperCount: 32,
+      lastActivity: "5 hours ago",
+      agentStatus: "Synthesizer Agent: Generating Summary",
+      agentType: "synthesizer",
+      color: "green"
+    },
+    {
+      id: 3,
+      title: "Quantum Computing Advances",
+      paperCount: 28,
+      lastActivity: "1 day ago",
+      agentStatus: "Critic Agent: Cross-validating Claims",
+      agentType: "critic",
+      color: "purple"
+    },
+    {
+      id: 4,
+      title: "Neural Architecture Search",
+      paperCount: 53,
+      lastActivity: "3 hours ago",
+      agentStatus: "Synthesizer Agent: Comparing Methods",
+      agentType: "synthesizer",
+      color: "orange"
+    },
+  ];
+
+  const agentActivities = [
+    {
+      id: 1,
+      agent: "Synthesizer Agent",
+      project: "AI in Healthcare",
+      activity: "Generated literature review section for \"Deep Learning in Diagnosis\"",
+      time: "5 minutes ago",
+      type: "synthesizer"
+    },
+    {
+      id: 2,
+      agent: "Critic Agent",
+      project: "AI in Healthcare",
+      activity: "Flagged potential inconsistency in dataset descriptions (Papers #12, #23)",
+      time: "12 minutes ago",
+      type: "critic"
+    },
+    {
+      id: 3,
+      agent: "Synthesizer Agent",
+      project: "Climate Change ML Models",
+      activity: "Created comparison table for 8 forecasting models",
+      time: "1 hour ago",
+      type: "synthesizer"
+    },
+    {
+      id: 4,
+      agent: "Critic Agent",
+      project: "Neural Architecture Search",
+      activity: "Validated reproducibility scores across 15 papers",
+      time: "2 hours ago",
+      type: "critic"
+    },
+  ];
+
   return (
-    <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-        <div>
-          <h1 style={{ fontSize: '28px', fontWeight: 600, color: '#111827', margin: '0 0 8px 0' }}>Welcome back, Dr. Chen</h1>
-          <p style={{ color: '#6b7280', margin: 0 }}>Here's what your AI agents are working on today.</p>
-        </div>
-        <button style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#2563eb', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 500 }}>
-          <Plus size={18} />
-          New Workspace
-        </button>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: '32px' }}>
-        {/* Left Column: Active Workspaces */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 600, color: '#111827', margin: 0 }}>Active Workspaces</h2>
-            <button style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              View All <ArrowRight size={16} />
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <ProjectCard 
-              title="Quantum Computing Survey"
-              papers={42}
-              timeAgo="Updated 2h ago"
-              agentTask="Synthesizer Agent: Generating Literature Review..."
-            />
-            <ProjectCard 
-              title="Neural Network Optimization"
-              papers={18}
-              timeAgo="Updated 5h ago"
-              agentTask="Critic Agent: Reviewing Consistency..."
-            />
-          </div>
+    <div className="p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-slate-900 mb-2">Research Dashboard</h1>
+          <p className="text-slate-600">Welcome back, Dr. Chen. Here's an overview of your research projects.</p>
         </div>
 
-        {/* Right Column: Agent Activity Feed */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 600, color: '#111827', margin: 0 }}>Agent Activity</h2>
+        {/* Projects Grid */}
+        <div className="mb-8">
+          <h2 className="text-slate-900 mb-4">Active Projects</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+            {projects.map((project) => (
+              <Link
+                key={project.id}
+                to="/pdf-reader"
+                className="block bg-white rounded-xl border border-slate-200 p-6 hover:border-blue-300 hover:shadow-lg transition-all"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-slate-900 mb-2">{project.title}</h3>
+                    <div className="flex items-center gap-4 text-sm text-slate-600">
+                      <div className="flex items-center gap-1">
+                        <FileText className="w-4 h-4" />
+                        <span>{project.paperCount} papers</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        <span>{project.lastActivity}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className={`w-12 h-12 rounded-lg bg-gradient-to-br from-${project.color}-500 to-${project.color}-600 flex items-center justify-center`}>
+                    <FileText className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+
+                {/* AI Agent Status */}
+                <div className={`p-3 rounded-lg flex items-start gap-2 ${
+                  project.agentType === 'critic' 
+                    ? 'bg-amber-50 border border-amber-200' 
+                    : 'bg-blue-50 border border-blue-200'
+                }`}>
+                  <Sparkles className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                    project.agentType === 'critic' ? 'text-amber-600' : 'text-blue-600'
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-900">{project.agentStatus}</p>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
-          <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '24px' }}>
-            
-            <ActivityItem 
-              agent="Synthesizer"
-              action="Completed Literature Review for 'Quantum Computing Survey'"
-              time="10 mins ago"
-              type="success"
-            />
-            <ActivityItem 
-              agent="Search"
-              action="Found 15 new papers for 'Neural Network Optimization'"
-              time="1 hour ago"
-              type="info"
-            />
-            <ActivityItem 
-              agent="Critic"
-              action="Identified 3 methodology gaps in workspace 4"
-              time="3 hours ago"
-              type="warning"
-            />
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Link
+            to="/paper-discovery"
+            className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 text-white hover:shadow-xl transition-all"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <Search className="w-8 h-8" />
+              <Sparkles className="w-6 h-6 opacity-75" />
+            </div>
+            <h3 className="mb-1">Paper Discovery</h3>
+            <p className="text-sm text-indigo-100">Search and discover research papers</p>
+          </Link>
+
+          <Link
+            to="/synthesis"
+            className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white hover:shadow-xl transition-all"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <FlaskConical className="w-8 h-8" />
+              <TrendingUp className="w-6 h-6 opacity-75" />
+            </div>
+            <h3 className="mb-1">Synthesis Lab</h3>
+            <p className="text-sm text-blue-100">Compare and synthesize papers</p>
+          </Link>
+
+          <Link
+            to="/analytics"
+            className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl p-6 text-white hover:shadow-xl transition-all"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <TrendingUp className="w-8 h-8" />
+              <AlertCircle className="w-6 h-6 opacity-75" />
+            </div>
+            <h3 className="mb-1">Analytics</h3>
+            <p className="text-sm text-slate-300">View research trends and gaps</p>
+          </Link>
+        </div>
+
+        {/* Agent Activity Feed */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-slate-900">Agent Activity Feed</h2>
+            <button className="text-sm text-blue-600 hover:text-blue-700">View All</button>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-200">
+            {agentActivities.map((item) => (
+              <div key={item.id} className="p-4 hover:bg-slate-50 transition-colors">
+                <div className="flex items-start gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    item.type === 'critic'
+                      ? 'bg-amber-100'
+                      : 'bg-blue-100'
+                  }`}>
+                    <Sparkles className={`w-5 h-5 ${
+                      item.type === 'critic' ? 'text-amber-600' : 'text-blue-600'
+                    }`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-sm px-2 py-0.5 rounded ${
+                        item.type === 'critic'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {item.agent}
+                      </span>
+                      <span className="text-sm text-slate-500">•</span>
+                      <span className="text-sm text-slate-700">{item.project}</span>
+                    </div>
+                    <p className="text-sm text-slate-900 mb-1">{item.activity}</p>
+                    <p className="text-xs text-slate-500">{item.time}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-const ActivityItem = ({ agent, action, time, type }: { agent: string, action: string, time: string, type: string }) => {
-  const colors: Record<string, string> = {
-    success: '#10b981',
-    info: '#2563eb',
-    warning: '#f59e0b'
-  };
-  const bgs: Record<string, string> = {
-    success: '#d1fae5',
-    info: '#eff6ff',
-    warning: '#fef3c7'
-  };
-  return (
-    <div style={{ display: 'flex', gap: '16px', marginBottom: '32px', position: 'relative' }}>
-      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: bgs[type], display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors[type], flexShrink: 0 }}>
-        <Sparkles size={16} />
-      </div>
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>{agent} Agent</span>
-        </div>
-        <p style={{ margin: 0, fontSize: '14px', color: '#111827', lineHeight: '1.5' }}>{action}</p>
-        <span style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginTop: '4px' }}>{time}</span>
-      </div>
-    </div>
-  );
-}
-

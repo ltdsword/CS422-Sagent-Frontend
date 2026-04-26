@@ -1,28 +1,23 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from '../layouts/DashboardLayout';
-import HomePage from '../pages/dashboard/HomePage';
-import DiscoveryPage from '../pages/dashboard/DiscoveryPage';
-import WorkspacePage from '../pages/dashboard/WorkspacePage';
-import WorkspaceDetail from '../pages/dashboard/WorkspaceDetail';
-import SynthesisPage from '../pages/dashboard/SynthesisPage';
-import AnalyticsPage from '../pages/dashboard/AnalyticsPage';
-import SettingsPage from '../pages/dashboard/SettingsPage';
+import { Dashboard as HomePage } from '../pages/dashboard/HomePage';
+import { PaperDiscovery as DiscoveryPage } from '../pages/dashboard/DiscoveryPage';
+import { Workspaces as WorkspacePage } from '../pages/dashboard/WorkspacePage';
+import { Synthesis as SynthesisPage } from '../pages/dashboard/SynthesisPage';
+import { Analytics as AnalyticsPage } from '../pages/dashboard/AnalyticsPage';
+import { Settings as SettingsPage } from '../pages/dashboard/SettingsPage';
 
 export default function AppRoutes() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<DashboardLayout />}>
-          <Route path='/' element={<HomePage />} />
-          <Route path='/discovery' element={<DiscoveryPage />} />
-          <Route path='/workspaces' element={<WorkspacePage />} />
-          <Route path='/workspaces/:id' element={<WorkspaceDetail />} />
-          <Route path='/synthesis' element={<SynthesisPage />} />
-          <Route path='/analytics' element={<AnalyticsPage />} />
-          <Route path='/settings' element={<SettingsPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/" element={<DashboardLayout />}>
+        <Route index element={<HomePage />} />
+        <Route path="discovery" element={<DiscoveryPage />} />
+        <Route path="workspace" element={<WorkspacePage />} />
+        <Route path="synthesis" element={<SynthesisPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+      </Route>
+    </Routes>
   );
 }
-

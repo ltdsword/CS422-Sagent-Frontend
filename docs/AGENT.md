@@ -117,7 +117,7 @@ Based on your current folder screenshot, tell your team to:
 4.  **MOVE** `Sidebar.tsx` and `TopBar.tsx` into `src/shared/components/layout/`.
 5.  **MOVE** `ProjectCard.tsx` into `src/features/workspaces/components/`.
 
-### C. The (?) Floating Chat
+### C. The Floating Chat
 Place the `FloatingChat.tsx` component inside `src/layouts/DashboardLayout.tsx`. This ensures it appears on every page except Login/Register.
 
 ### D. Shared UI Consistency
