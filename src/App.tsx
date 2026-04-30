@@ -1,11 +1,14 @@
-import { BrowserRouter } from 'react-router-dom';
-import AppRoutes from './routes/AppRoutes';
-import './index.css';
+import { BrowserRouter } from "react-router-dom";
+import { AuthProvider } from "@/shared/hooks/useAuth";
+import AppRoutes from "./routes/AppRoutes";
+import "./index.css";
 
 function App() {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   );
 }
