@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   FolderOpen,
+  LogIn,
   Plus,
   FileText,
   Trash2,
@@ -11,21 +13,18 @@ import {
   Tag,
   X,
   MoreVertical,
-  Search,
   Check,
   Loader2,
   Pencil,
 } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import * as Checkbox from "@radix-ui/react-checkbox";
 import { format, parseISO } from "date-fns";
 import { toast, Toaster } from "sonner";
 
 import {
   createTag,
   createWorkspace,
-  createWorkspacePaper,
   deleteTag,
   deleteWorkspace,
   deleteWorkspacePaper,
@@ -37,6 +36,7 @@ import {
 import { listLibraryPapers as fetchLibraryPapers } from "@/features/workspaces/api/library-papers-api";
 import type { LibraryPaperRecord, WorkspaceDto, WorkspacePaperDto } from "@/features/workspaces/types";
 import { getApiErrorMessage } from "@/features/workspaces/utils/api-error";
+import { useAuth } from "@/shared/hooks/useAuth";
 
 type WorkspacePaperRow = {
   linkId: number;
@@ -67,6 +67,9 @@ function buildPaperRows(
 }
 
 export function Workspaces() {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
   const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
   const [workspacePaperCounts, setWorkspacePaperCounts] = useState<Record<string, number>>({});
   const [listLoading, setListLoading] = useState(true);
@@ -74,13 +77,10 @@ export function Workspaces() {
 
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [paperRows, setPaperRows] = useState<WorkspacePaperRow[]>([]);
-  const [libraryPapers, setLibraryPapers] = useState<LibraryPaperRecord[]>([]);
-
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState<WorkspaceDto | null>(null);
 
-  const [addPapersModalOpen, setAddPapersModalOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState("");
   const [editName, setEditName] = useState("");
@@ -88,9 +88,6 @@ export function Workspaces() {
 
   const [tagInputValue, setTagInputValue] = useState("");
   const [editingTagForLinkId, setEditingTagForLinkId] = useState<number | null>(null);
-  const [selectedLibraryPaperIds, setSelectedLibraryPaperIds] = useState<number[]>([]);
-  const [librarySearchQuery, setLibrarySearchQuery] = useState("");
-
   const selectedWorkspace = useMemo(
     () => workspaces.find((w) => w.id === selectedWorkspaceId) ?? null,
     [workspaces, selectedWorkspaceId],
@@ -103,7 +100,34 @@ export function Workspaces() {
     return paperRows.length;
   }, [paperRows.length, selectedWorkspaceId]);
 
+  /** Same idea as the API “credentials not provided” response—tell the user clearly, without raw Django text. */
+  const notifyLoginRequiredForWorkspaces = useCallback(() => {
+    toast.message("Please log in", {
+      description: "You need to sign in to view and manage workspaces.",
+      action: {
+        label: "Log in",
+        onClick: () => void navigate("/login"),
+      },
+    });
+  }, [navigate]);
+
+  const guestWorkspacesToastShownRef = useRef(false);
+
+  const openCreateWorkspaceModal = useCallback(() => {
+    if (!isAuthenticated) {
+      notifyLoginRequiredForWorkspaces();
+      return;
+    }
+    setCreateModalOpen(true);
+  }, [isAuthenticated, notifyLoginRequiredForWorkspaces]);
+
   const refreshWorkspaceList = useCallback(async () => {
+    if (!isAuthenticated) {
+      setWorkspaces([]);
+      setListLoading(false);
+      return;
+    }
+
     setListLoading(true);
     try {
       const data = await listWorkspaces();
@@ -113,9 +137,15 @@ export function Workspaces() {
     } finally {
       setListLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const refreshWorkspaceDetail = useCallback(async (workspaceId: string) => {
+    if (!isAuthenticated) {
+      setPaperRows([]);
+      setDetailLoading(false);
+      return;
+    }
+
     setDetailLoading(true);
     try {
       const [links, lib] = await Promise.all([
@@ -123,7 +153,6 @@ export function Workspaces() {
         fetchLibraryPapers().catch(() => [] as LibraryPaperRecord[]),
       ]);
 
-      setLibraryPapers(lib);
       const libraryById = new Map(lib.map((p) => [p.id, p]));
       const forWorkspace = links.filter((l) => l.workspace === workspaceId);
       setPaperRows(buildPaperRows(forWorkspace, libraryById));
@@ -136,7 +165,33 @@ export function Workspaces() {
     } finally {
       setDetailLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSelectedWorkspaceId(null);
+      setCreateModalOpen(false);
+      setEditModalOpen(false);
+      setEditingWorkspace(null);
+      setWorkspacePaperCounts({});
+      setPaperRows([]);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      guestWorkspacesToastShownRef.current = false;
+      return;
+    }
+    if (listLoading) {
+      return;
+    }
+    if (guestWorkspacesToastShownRef.current) {
+      return;
+    }
+    guestWorkspacesToastShownRef.current = true;
+    notifyLoginRequiredForWorkspaces();
+  }, [isAuthenticated, listLoading, notifyLoginRequiredForWorkspaces]);
 
   useEffect(() => {
     void refreshWorkspaceList();
@@ -151,6 +206,11 @@ export function Workspaces() {
   }, [selectedWorkspaceId, refreshWorkspaceDetail]);
 
   const handleCreateWorkspace = async () => {
+    if (!isAuthenticated) {
+      notifyLoginRequiredForWorkspaces();
+      return;
+    }
+
     const name = newWorkspaceName.trim();
     if (!name) {
       toast.error("Please enter a workspace name");
@@ -279,40 +339,6 @@ export function Workspaces() {
     }
   };
 
-  const toggleLibraryPaper = (paperId: number) => {
-    setSelectedLibraryPaperIds((prev) =>
-      prev.includes(paperId) ? prev.filter((id) => id !== paperId) : [...prev, paperId],
-    );
-  };
-
-  const handleAddPapersToWorkspace = async () => {
-    if (!selectedWorkspaceId) {
-      return;
-    }
-    const ids = selectedLibraryPaperIds;
-    if (ids.length === 0) {
-      toast.error("Please select at least one paper");
-      return;
-    }
-
-    let ok = 0;
-    for (const paperId of ids) {
-      try {
-        await createWorkspacePaper({ workspace: selectedWorkspaceId, paper: paperId });
-        ok += 1;
-      } catch (err) {
-        toast.error(getApiErrorMessage(err, `Could not add paper ${paperId}`));
-      }
-    }
-
-    if (ok > 0) {
-      toast.success(`${ok} paper${ok !== 1 ? "s" : ""} added`);
-    }
-    setSelectedLibraryPaperIds([]);
-    setAddPapersModalOpen(false);
-    await refreshWorkspaceDetail(selectedWorkspaceId);
-  };
-
   const handleRemovePaperLink = async (linkId: number, title: string) => {
     if (!window.confirm(`Remove "${title}" from this workspace?`)) {
       return;
@@ -325,38 +351,6 @@ export function Workspaces() {
       }
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Could not remove paper"));
-    }
-  };
-
-  const filteredLibraryPapers = libraryPapers.filter((paper) => {
-    const query = librarySearchQuery.toLowerCase();
-    return (
-      paper.title.toLowerCase().includes(query) ||
-      paper.authors.toLowerCase().includes(query) ||
-      String(paper.id).includes(query)
-    );
-  });
-
-  const linkedPaperIds = useMemo(
-    () => new Set(paperRows.map((r) => r.libraryPaperId)),
-    [paperRows],
-  );
-
-  const openAddPapersModal = async () => {
-    setLibrarySearchQuery("");
-    setSelectedLibraryPaperIds([]);
-    setAddPapersModalOpen(true);
-    try {
-      const lib = await fetchLibraryPapers();
-      setLibraryPapers(lib);
-      if (lib.length === 0) {
-        toast.message("No library papers returned", {
-          description:
-            "Check that papers exist and VITE_LIBRARY_PAPERS_PATH matches your backend (default /library/papers/).",
-        });
-      }
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Could not load library papers"));
     }
   };
 
@@ -400,7 +394,7 @@ export function Workspaces() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void openAddPapersModal()}
+                    onClick={() => void navigate("/discovery")}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     <BookmarkPlus className="w-4 h-4" />
@@ -445,8 +439,8 @@ export function Workspaces() {
                         {!detailLoading && paperRows.length === 0 ? (
                           <tr>
                             <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-600">
-                              No papers in this workspace yet. Use &quot;Add papers&quot; to link library
-                              papers.
+                              No papers in this workspace yet. Go to Paper Discovery to add papers from your
+                              library.
                             </td>
                           </tr>
                         ) : null}
@@ -573,115 +567,6 @@ export function Workspaces() {
           </div>
         </div>
 
-        <Dialog.Root open={addPapersModalOpen} onOpenChange={setAddPapersModalOpen}>
-          <Dialog.Portal>
-            <Dialog.Overlay className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm animate-in fade-in z-40" />
-            <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden animate-in fade-in zoom-in-95 z-50">
-              <div className="p-6 border-b border-slate-200">
-                <div className="flex items-center justify-between mb-4">
-                  <Dialog.Title className="text-slate-900">Add papers from library</Dialog.Title>
-                  <Dialog.Close className="p-1 hover:bg-slate-100 rounded-lg transition-colors">
-                    <X className="w-5 h-5 text-slate-500" />
-                  </Dialog.Close>
-                </div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by title, author, or library ID..."
-                    value={librarySearchQuery}
-                    onChange={(e) => setLibrarySearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="overflow-y-auto max-h-[50vh] p-6">
-                {filteredLibraryPapers.length === 0 ? (
-                  <p className="text-sm text-slate-600 text-center py-8">
-                    No papers match your search or the library list is empty.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {filteredLibraryPapers.map((paper) => {
-                      const already = linkedPaperIds.has(paper.id);
-                      return (
-                        <label
-                          key={paper.id}
-                          className={`flex items-start gap-3 p-4 border rounded-lg transition-colors ${
-                            already
-                              ? "border-slate-100 bg-slate-50 cursor-not-allowed opacity-60"
-                              : "border-slate-200 hover:bg-slate-50 cursor-pointer"
-                          }`}
-                        >
-                          <Checkbox.Root
-                            checked={selectedLibraryPaperIds.includes(paper.id)}
-                            disabled={already}
-                            onCheckedChange={() => {
-                              if (!already) {
-                                toggleLibraryPaper(paper.id);
-                              }
-                            }}
-                            className="w-5 h-5 border-2 border-slate-300 rounded flex items-center justify-center data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 mt-0.5 disabled:opacity-50"
-                          >
-                            <Checkbox.Indicator>
-                              <Check className="w-4 h-4 text-white" />
-                            </Checkbox.Indicator>
-                          </Checkbox.Root>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-slate-900 mb-1">{paper.title}</p>
-                            <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap">
-                              <span>ID {paper.id}</span>
-                              <span>•</span>
-                              <span>{paper.authors}</span>
-                              <span>•</span>
-                              <span>{paper.year ?? "—"}</span>
-                              {paper.venue ? (
-                                <>
-                                  <span>•</span>
-                                  <span>{paper.venue}</span>
-                                </>
-                              ) : null}
-                              {already ? (
-                                <>
-                                  <span>•</span>
-                                  <span className="text-amber-700">Already in workspace</span>
-                                </>
-                              ) : null}
-                            </div>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="p-6 border-t border-slate-200 bg-slate-50">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <p className="text-sm text-slate-600">
-                    {selectedLibraryPaperIds.length} paper
-                    {selectedLibraryPaperIds.length !== 1 ? "s" : ""} selected
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <Dialog.Close className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm">
-                      Cancel
-                    </Dialog.Close>
-                    <button
-                      type="button"
-                      onClick={() => void handleAddPapersToWorkspace()}
-                      disabled={selectedLibraryPaperIds.length === 0}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed text-sm"
-                    >
-                      Add to workspace
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
-
         <Dialog.Root open={editModalOpen} onOpenChange={setEditModalOpen}>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm animate-in fade-in z-40" />
@@ -744,14 +629,24 @@ export function Workspaces() {
               <h1 className="text-slate-900 mb-2">My workspaces</h1>
               <p className="text-slate-600">Manage your research workspaces and linked papers</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setCreateModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              New workspace
-            </button>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={() => openCreateWorkspaceModal()}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                New workspace
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <LogIn className="w-4 h-4" />
+                Log in to create
+              </Link>
+            )}
           </div>
 
           {listLoading ? (
@@ -761,16 +656,34 @@ export function Workspaces() {
           ) : workspaces.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
               <FolderOpen className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <h2 className="text-slate-900 mb-2">No workspaces yet</h2>
-              <p className="text-slate-600 mb-6">Create your first workspace to get started</p>
-              <button
-                type="button"
-                onClick={() => setCreateModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Create workspace
-              </button>
+              {isAuthenticated ? (
+                <>
+                  <h2 className="text-slate-900 mb-2">No workspaces yet</h2>
+                  <p className="text-slate-600 mb-6">Create your first workspace to get started</p>
+                  <button
+                    type="button"
+                    onClick={() => openCreateWorkspaceModal()}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create workspace
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-slate-900 mb-2">Sign in to use workspaces</h2>
+                  <p className="text-slate-600 mb-6">
+                    Log in to create workspaces and organize papers. Guests cannot create workspaces.
+                  </p>
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    Log in
+                  </Link>
+                </>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -882,7 +795,16 @@ export function Workspaces() {
         </div>
       </div>
 
-      <Dialog.Root open={createModalOpen} onOpenChange={setCreateModalOpen}>
+      <Dialog.Root
+        open={createModalOpen}
+        onOpenChange={(open) => {
+          if (open && !isAuthenticated) {
+            notifyLoginRequiredForWorkspaces();
+            return;
+          }
+          setCreateModalOpen(open);
+        }}
+      >
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm animate-in fade-in z-40" />
             <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 z-50">
