@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState } from "react";
-import { 
-  Search, 
-  Sparkles, 
-  Filter, 
-  Upload, 
-  BookmarkPlus, 
-  
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Search,
+  Sparkles,
+  Filter,
+  Upload,
+  FolderOpen,
+  FolderPlus,
   X,
   CheckCircle,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Switch from "@radix-ui/react-switch";
@@ -17,8 +18,15 @@ import * as Slider from "@radix-ui/react-slider";
 import { toast, Toaster } from "sonner";
 import { useDiscovery } from "@/features/discovery/hooks/useDiscovery";
 import PaperList from "@/features/discovery/components/PaperList";
+import type { DiscoveryPaper } from "@/features/discovery/types";
+import { createWorkspacePaper, listWorkspaces } from "@/features/workspaces/api/workspaces-api";
+import type { WorkspaceDto } from "@/features/workspaces/types";
+import { getApiErrorMessage } from "@/features/workspaces/utils/api-error";
+import { useAuth } from "@/shared/hooks/useAuth";
 
 export function PaperDiscovery() {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [diversityRanking, setDiversityRanking] = useState(false);
   const [query, setQuery] = useState("");
   const [author, setAuthor] = useState("");
@@ -31,6 +39,12 @@ export function PaperDiscovery() {
   const [isUploading, setIsUploading] = useState(false);
   const [dateRange, setDateRange] = useState([2010, 2026]);
   const [dragActive, setDragActive] = useState(false);
+
+  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+  const [paperToAdd, setPaperToAdd] = useState<DiscoveryPaper | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
+  const [workspacesLoading, setWorkspacesLoading] = useState(false);
+  const [addingWorkspaceId, setAddingWorkspaceId] = useState<string | null>(null);
 
   const VENUE_OPTIONS = [
     { id: 'arxiv', label: 'arXiv' },
@@ -90,11 +104,71 @@ export function PaperDiscovery() {
     }, 300);
   };
 
-  const handleSavePaper = (paperId: number, title: string) => {
-    toast.success("Paper saved to library!", {
-      description: `"${title.substring(0, 40)}..." has been added to your library.`,
-      icon: <BookmarkPlus className="w-4 h-4" />,
-    });
+  const openWorkspacePicker = useCallback(
+    (paper: DiscoveryPaper) => {
+      if (!isAuthenticated) {
+        toast.message("Please log in", {
+          description: "You need to sign in to add papers to a workspace.",
+          action: {
+            label: "Log in",
+            onClick: () => void navigate("/login"),
+          },
+        });
+        return;
+      }
+      setPaperToAdd(paper);
+      setWorkspacePickerOpen(true);
+    },
+    [isAuthenticated, navigate],
+  );
+
+  useEffect(() => {
+    if (!workspacePickerOpen || !isAuthenticated) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setWorkspacesLoading(true);
+      try {
+        const list = await listWorkspaces();
+        if (!cancelled) {
+          setWorkspaces(list);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(getApiErrorMessage(err, "Could not load workspaces"));
+        }
+      } finally {
+        if (!cancelled) {
+          setWorkspacesLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspacePickerOpen, isAuthenticated]);
+
+  const handleSelectWorkspace = async (workspaceId: string) => {
+    if (!paperToAdd) {
+      return;
+    }
+    setAddingWorkspaceId(workspaceId);
+    try {
+      await createWorkspacePaper({ workspace: workspaceId, paper: paperToAdd.id });
+      const shortTitle =
+        paperToAdd.title.length > 72 ? `${paperToAdd.title.slice(0, 72)}…` : paperToAdd.title;
+      toast.success("Added to workspace", {
+        description: shortTitle,
+        icon: <FolderOpen className="w-4 h-4" />,
+      });
+      setWorkspacePickerOpen(false);
+      setPaperToAdd(null);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not add paper to workspace"));
+    } finally {
+      setAddingWorkspaceId(null);
+    }
   };
 
   const toggleVenue = (venue: keyof typeof selectedVenues) => {
@@ -286,7 +360,7 @@ export function PaperDiscovery() {
                 {loading ? (
                   <div className="py-6 text-center text-slate-600">Loading papers...</div>
                 ) : (
-                  <PaperList papers={papers ?? []} onSave={(p) => handleSavePaper(p.id, p.title)} />
+                  <PaperList papers={papers ?? []} onAddToWorkspace={openWorkspacePicker} />
                 )}
               </div>
             </div>
@@ -360,6 +434,78 @@ export function PaperDiscovery() {
                   </p>
                 </div>
               )}
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+
+        <Dialog.Root
+          open={workspacePickerOpen}
+          onOpenChange={(open) => {
+            setWorkspacePickerOpen(open);
+            if (!open) {
+              setPaperToAdd(null);
+            }
+          }}
+        >
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm animate-in fade-in" />
+            <Dialog.Content className="fixed top-1/2 left-1/2 z-50 max-h-[85vh] flex flex-col -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <Dialog.Title className="text-slate-900 pr-2">Add to workspace</Dialog.Title>
+                <Dialog.Close className="p-1 hover:bg-slate-100 rounded-lg transition-colors shrink-0">
+                  <X className="w-5 h-5 text-slate-500" />
+                </Dialog.Close>
+              </div>
+              {paperToAdd ? (
+                <p className="text-sm text-slate-600 mb-4 line-clamp-2 shrink-0">{paperToAdd.title}</p>
+              ) : null}
+              <div className="overflow-y-auto flex-1 min-h-0 -mr-2 pr-2">
+                {workspacesLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-10 text-slate-600">
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                    Loading workspaces…
+                  </div>
+                ) : workspaces.length === 0 ? (
+                  <div className="text-center py-8 px-2">
+                    <FolderPlus className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm text-slate-600 mb-4">You don&apos;t have any workspaces yet.</p>
+                    <Link
+                      to="/workspace"
+                      className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
+                      onClick={() => setWorkspacePickerOpen(false)}
+                    >
+                      Create a workspace
+                    </Link>
+                  </div>
+                ) : (
+                  <ul className="space-y-2">
+                    {workspaces.map((ws) => (
+                      <li key={ws.id}>
+                        <button
+                          type="button"
+                          disabled={addingWorkspaceId !== null}
+                          onClick={() => void handleSelectWorkspace(ws.id)}
+                          className="w-full flex items-center gap-3 text-left px-4 py-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors disabled:opacity-60"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                            {addingWorkspaceId === ws.id ? (
+                              <Loader2 className="w-4 h-4 text-indigo-600 animate-spin" />
+                            ) : (
+                              <FolderOpen className="w-4 h-4 text-indigo-600" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-slate-900 truncate">{ws.name}</p>
+                            {ws.description ? (
+                              <p className="text-xs text-slate-500 line-clamp-1">{ws.description}</p>
+                            ) : null}
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>

@@ -1,4 +1,5 @@
 import axiosInstance from "@/shared/utils/axios-instance";
+import { parseLibraryPaperJson } from "@/shared/utils/json-bigint";
 import type { LibraryPaperRecord } from "../types";
 
 const LIBRARY_PAPERS_PATH =
@@ -9,7 +10,26 @@ function coerceAuthors(authors: unknown): string {
     return authors;
   }
   if (Array.isArray(authors)) {
-    return authors.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(", ");
+    return authors
+      .map((a) => {
+        if (typeof a === "string") return a;
+        if (a && typeof a === "object" && "name" in a) {
+          return String((a as { name?: unknown }).name ?? "");
+        }
+        return "";
+      })
+      .filter((s) => s.length > 0)
+      .join(", ");
+  }
+  return "";
+}
+
+function venueToString(venueRaw: unknown): string {
+  if (typeof venueRaw === "string") {
+    return venueRaw;
+  }
+  if (venueRaw && typeof venueRaw === "object" && "name" in venueRaw) {
+    return String((venueRaw as { name?: unknown }).name ?? "");
   }
   return "";
 }
@@ -30,8 +50,23 @@ function normalizePaper(raw: Record<string, unknown>): LibraryPaperRecord | null
       : typeof yearRaw === "string"
         ? Number(yearRaw)
         : null;
-  const venueRaw = raw.venue ?? raw.journal ?? raw.booktitle ?? "";
-  const venue = typeof venueRaw === "string" ? venueRaw : "";
+  const venue =
+    venueToString(raw.venue) ||
+    (typeof raw.journal === "string" ? raw.journal : "") ||
+    (typeof raw.booktitle === "string" ? raw.booktitle : "");
+
+  const abstract =
+    typeof raw.abstract === "string"
+      ? raw.abstract
+      : typeof raw.summary === "string"
+        ? raw.summary
+        : null;
+  const pdf_url =
+    typeof raw.pdf_url === "string"
+      ? raw.pdf_url
+      : typeof raw.pdfUrl === "string"
+        ? raw.pdfUrl
+        : null;
 
   return {
     id: idStr,
@@ -39,6 +74,8 @@ function normalizePaper(raw: Record<string, unknown>): LibraryPaperRecord | null
     authors,
     year: year !== null && Number.isFinite(year) ? year : null,
     venue,
+    abstract,
+    pdf_url,
   };
 }
 
@@ -53,10 +90,37 @@ function unwrapListPayload(payload: unknown): unknown[] {
   return [];
 }
 
+function detailUrlForPaperId(id: string): string {
+  const base = LIBRARY_PAPERS_PATH.endsWith("/") ? LIBRARY_PAPERS_PATH : `${LIBRARY_PAPERS_PATH}/`;
+  return `${base}${encodeURIComponent(id)}/`;
+}
+
+/** Single paper from the library detail endpoint (correct metadata even when the paper is not on list page 1). */
+export async function getLibraryPaper(id: string): Promise<LibraryPaperRecord | null> {
+  try {
+    const { data } = await axiosInstance.get<string>(detailUrlForPaperId(id), {
+      responseType: "text",
+      transformResponse: [(r) => r],
+    });
+    const rawText = typeof data === "string" ? data : String(data);
+    const parsed = parseLibraryPaperJson(rawText);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    return normalizePaper(parsed as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+}
+
 /** Fetches library papers for the “add to workspace” flow (numeric ids match workspace-paper create). */
 export async function listLibraryPapers(): Promise<LibraryPaperRecord[]> {
-  const { data } = await axiosInstance.get<unknown>(LIBRARY_PAPERS_PATH);
-  const rows = unwrapListPayload(data);
+  const { data } = await axiosInstance.get<string>(LIBRARY_PAPERS_PATH, {
+    responseType: "text",
+    transformResponse: [(r) => r],
+  });
+  const payload = parseLibraryPaperJson(typeof data === "string" ? data : String(data));
+  const rows = unwrapListPayload(payload);
   const papers: LibraryPaperRecord[] = [];
 
   for (const row of rows) {

@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import axiosInstance from "@/shared/utils/axios-instance";
+import { parseLibraryPaperJson } from "@/shared/utils/json-bigint";
 
 type Author = {
   id: number | string;
@@ -41,15 +42,16 @@ export function PaperDetailPage() {
         setLoading(false);
         return;
       }
-      console.log(Number.MAX_SAFE_INTEGER)
-      console.log("Extracted ID from URL:", paperId); // Is this undefined?
-      console.log("Fetching exact URL:", `/library/papers/${paperId}/`);
-
       setLoading(true);
       setError(null);
       try {
-        const { data } = await axiosInstance.get<Paper>(`/library/papers/${paperId}/`);
-        setPaper(data);
+        const { data } = await axiosInstance.get<string>(`/library/papers/${paperId}/`, {
+          responseType: "text",
+          transformResponse: [(r) => r],
+        });
+        const rawText = typeof data === "string" ? data : String(data);
+        const parsed = parseLibraryPaperJson(rawText) as Paper;
+        setPaper(parsed);
       } catch (err) {
         console.error("Failed to fetch paper details:", err);
         setError("Failed to load paper details. Please try again.");

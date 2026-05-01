@@ -25,4 +25,6 @@ export type LibraryPaperRecord = {
   authors: string;
   year: number | null;
   venue: string;
+  abstract?: string | null;
+  pdf_url?: string | null;
 };

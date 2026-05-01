@@ -16,6 +16,7 @@ import {
   Check,
   Loader2,
   Pencil,
+  ExternalLink,
 } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -31,10 +32,11 @@ import {
   listTags,
   listWorkspacePapers,
   listWorkspaces,
+  normalizeWorkspacePaperTags,
   updateWorkspace,
 } from "@/features/workspaces/api/workspaces-api";
-import { listLibraryPapers as fetchLibraryPapers } from "@/features/workspaces/api/library-papers-api";
-import type { LibraryPaperRecord, WorkspaceDto, WorkspacePaperDto } from "@/features/workspaces/types";
+import { getLibraryPaper } from "@/features/workspaces/api/library-papers-api";
+import type { LibraryPaperRecord, TagDto, WorkspaceDto, WorkspacePaperDto } from "@/features/workspaces/types";
 import { getApiErrorMessage } from "@/features/workspaces/utils/api-error";
 import { useAuth } from "@/shared/hooks/useAuth";
 
@@ -45,12 +47,71 @@ type WorkspacePaperRow = {
   authors: string;
   year: number | null;
   venue: string;
+  abstractPreview: string;
+  pdfUrl: string | null;
   tags: string[];
 };
+
+function truncateForTable(text: string | null | undefined, maxLen: number): string {
+  if (!text?.trim()) {
+    return "—";
+  }
+  const t = text.trim().replace(/\s+/g, " ");
+  if (t.length <= maxLen) {
+    return t;
+  }
+  return `${t.slice(0, maxLen).trim()}…`;
+}
+
+function normalizePdfUrl(url: string | null | undefined): string | null {
+  if (typeof url !== "string") {
+    return null;
+  }
+  const u = url.trim();
+  if (!u) {
+    return null;
+  }
+  if (/^https?:\/\//i.test(u)) {
+    return u;
+  }
+  return null;
+}
+
+const DJANGO_TAG_OBJECT_STR = /^Tag object \(\d+\)$/i;
+
+function sortUniqueLabels(labels: string[]): string[] {
+  return [...new Set(labels.map((s) => s.trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" }),
+  );
+}
+
+/** Prefer names from `GET /workspaces/tag/`; workspace-paper payloads often expose useless `Tag object (pk)` strings. */
+function resolveTagsForLink(link: WorkspacePaperDto, tagsByLinkId: Map<number, string[]>): string[] {
+  const fromTagEndpoint = tagsByLinkId.get(link.id);
+  if (fromTagEndpoint && fromTagEndpoint.length > 0) {
+    return sortUniqueLabels(fromTagEndpoint);
+  }
+  const fallback = normalizeWorkspacePaperTags(link.tags);
+  return sortUniqueLabels(fallback.filter((s) => !DJANGO_TAG_OBJECT_STR.test(s)));
+}
+
+function buildTagsByWorkspacePaperId(tags: TagDto[]): Map<number, string[]> {
+  const map = new Map<number, string[]>();
+  for (const t of tags) {
+    const list = map.get(t.workspace_paper);
+    if (list) {
+      list.push(t.name);
+    } else {
+      map.set(t.workspace_paper, [t.name]);
+    }
+  }
+  return map;
+}
 
 function buildPaperRows(
   links: WorkspacePaperDto[],
   libraryById: Map<string, LibraryPaperRecord>,
+  tagsByLinkId: Map<number, string[]>,
 ): WorkspacePaperRow[] {
   return links.map((link) => {
     const meta = libraryById.get(String(link.paper));
@@ -61,7 +122,9 @@ function buildPaperRows(
       authors: meta?.authors ?? "—",
       year: meta?.year ?? null,
       venue: meta?.venue ?? "",
-      tags: [...link.tags],
+      abstractPreview: truncateForTable(meta?.abstract ?? null, 200),
+      pdfUrl: normalizePdfUrl(meta?.pdf_url ?? null),
+      tags: resolveTagsForLink(link, tagsByLinkId),
     };
   });
 }
@@ -148,14 +211,27 @@ export function Workspaces() {
 
     setDetailLoading(true);
     try {
-      const [links, lib] = await Promise.all([
+      const [links, allTags] = await Promise.all([
         listWorkspacePapers(),
-        fetchLibraryPapers().catch(() => [] as LibraryPaperRecord[]),
+        listTags().catch(() => [] as TagDto[]),
       ]);
-
-      const libraryById = new Map(lib.map((p) => [String(p.id), p]));
+      const tagsByLinkId = buildTagsByWorkspacePaperId(allTags);
       const forWorkspace = links.filter((l) => l.workspace === workspaceId);
-      setPaperRows(buildPaperRows(forWorkspace, libraryById));
+      const uniquePaperIds = [...new Set(forWorkspace.map((l) => String(l.paper)))];
+      const metaPairs = await Promise.all(
+        uniquePaperIds.map(async (requestedId) => ({
+          requestedId,
+          meta: await getLibraryPaper(requestedId),
+        })),
+      );
+      const libraryById = new Map<string, LibraryPaperRecord>();
+      for (const { requestedId, meta } of metaPairs) {
+        if (meta) {
+          libraryById.set(requestedId, meta);
+          libraryById.set(meta.id, meta);
+        }
+      }
+      setPaperRows(buildPaperRows(forWorkspace, libraryById, tagsByLinkId));
       setWorkspacePaperCounts((prev) => ({
         ...prev,
         [workspaceId]: forWorkspace.length,
@@ -398,7 +474,7 @@ export function Workspaces() {
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     <BookmarkPlus className="w-4 h-4" />
-                    Add papers
+                    Add to workspace
                   </button>
                 </div>
               </div>
@@ -430,15 +506,18 @@ export function Workspaces() {
                           <th className="text-left px-6 py-3 text-sm text-slate-700">Title</th>
                           <th className="text-left px-6 py-3 text-sm text-slate-700">Authors</th>
                           <th className="text-left px-6 py-3 text-sm text-slate-700">Year</th>
-                          <th className="text-left px-6 py-3 text-sm text-slate-700">Library ID</th>
+                          <th className="text-left px-6 py-3 text-sm text-slate-700 max-w-xs lg:max-w-md">
+                            Abstract
+                          </th>
                           <th className="text-left px-6 py-3 text-sm text-slate-700">Tags</th>
-                          <th className="text-left px-6 py-3 text-sm text-slate-700"></th>
+                          <th className="text-left px-6 py-3 text-sm text-slate-700 w-28">Open</th>
+                          <th className="text-left px-6 py-3 text-sm text-slate-700 w-12"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
                         {!detailLoading && paperRows.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-600">
+                            <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-600">
                               No papers in this workspace yet. Go to Paper Discovery to add papers from your
                               library.
                             </td>
@@ -447,7 +526,14 @@ export function Workspaces() {
                         {paperRows.map((paper) => (
                           <tr key={paper.linkId} className="hover:bg-slate-50 transition-colors">
                             <td className="px-6 py-4">
-                              <p className="text-sm text-slate-900">{paper.title}</p>
+                              <p className="text-sm text-slate-900">
+                                <Link
+                                  to={`/discovery/${encodeURIComponent(paper.libraryPaperId)}`}
+                                  className="hover:text-indigo-700 transition-colors"
+                                >
+                                  {paper.title}
+                                </Link>
+                              </p>
                               {paper.venue ? (
                                 <p className="text-xs text-slate-500 mt-1">{paper.venue}</p>
                               ) : null}
@@ -460,8 +546,10 @@ export function Workspaces() {
                                 {paper.year !== null ? paper.year : "—"}
                               </p>
                             </td>
-                            <td className="px-6 py-4">
-                              <span className="text-xs text-slate-600">{paper.libraryPaperId}</span>
+                            <td className="px-6 py-4 max-w-xs lg:max-w-md">
+                              <p className="text-xs text-slate-600 leading-relaxed line-clamp-4">
+                                {paper.abstractPreview}
+                              </p>
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -532,6 +620,27 @@ export function Workspaces() {
                                   </button>
                                 )}
                               </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              {paper.pdfUrl ? (
+                                <a
+                                  href={paper.pdfUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                                  PDF / source
+                                </a>
+                              ) : (
+                                <Link
+                                  to={`/discovery/${encodeURIComponent(paper.libraryPaperId)}`}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors"
+                                >
+                                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                                  View paper
+                                </Link>
+                              )}
                             </td>
                             <td className="px-6 py-4">
                               <button
