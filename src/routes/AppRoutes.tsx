@@ -5,6 +5,7 @@ import LoginPage from "../pages/auth/LoginPage";
 import RegisterPage from "../pages/auth/RegisterPage";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { PaperDiscovery as DiscoveryPage } from "../pages/dashboard/DiscoveryPage";
+import { PaperDetailPage } from "../pages/dashboard/PaperDetailPage";
 import { Analytics as AnalyticsPage } from "../pages/dashboard/AnalyticsPage";
 import { Dashboard as HomePage } from "../pages/dashboard/HomePage";
 import { Settings as SettingsPage } from "../pages/dashboard/SettingsPage";
@@ -28,7 +29,7 @@ export default function AppRoutes() {
       <Route path="/" element={<DashboardLayout />}>
         <Route index element={<HomePage />} />
         <Route path="discovery" element={<DiscoveryPage />} />
-        {/* <Route path="discovery/:paperId" element={<PaperDetailPage />} /> */}
+        <Route path="discovery/:paperId" element={<PaperDetailPage />} />
         <Route path="workspace" element={<WorkspacePage />} />
         <Route path="workspaces" element={<Navigate to="/workspace" replace />} />
         <Route path="synthesis" element={<SynthesisPage />} />
