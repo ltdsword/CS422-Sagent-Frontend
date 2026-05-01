@@ -5,7 +5,6 @@ import {
   Filter, 
   Upload, 
   BookmarkPlus, 
-  FileText, 
   ExternalLink,
   X,
   CheckCircle,
@@ -14,10 +13,10 @@ import {
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Switch from "@radix-ui/react-switch";
 import * as Slider from "@radix-ui/react-slider";
+import { Link } from "react-router-dom";
 import { toast, Toaster } from "sonner";
 
 export function PaperDiscovery() {
-  const [aiEnhanced, setAiEnhanced] = useState(false);
   const [diversityRanking, setDiversityRanking] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -107,7 +106,7 @@ export function PaperDiscovery() {
           setIsUploading(false);
           setUploadModalOpen(false);
           toast.success("Paper added successfully!", {
-            description: "The paper has been added to your library.",
+            description: `${file.name} has been added to your library.`,
             icon: <CheckCircle className="w-4 h-4" />,
           });
           return 100;
@@ -132,7 +131,7 @@ export function PaperDiscovery() {
     <>
       <Toaster position="top-right" richColors />
       
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-slate-50 to-emerald-50">
+      <div className="min-h-screen bg-linear-to-br from-indigo-50 via-slate-50 to-emerald-50">
         <div className="flex h-screen">
           {/* Filter Sidebar */}
           <aside className="w-80 bg-white/70 backdrop-blur-xl border-r border-slate-200/50 p-6 overflow-y-auto">
@@ -234,7 +233,7 @@ export function PaperDiscovery() {
                     diversityRanking ? 'bg-indigo-600' : 'bg-slate-300'
                   }`}
                 >
-                  <Switch.Thumb className="block w-5 h-5 bg-white rounded-full transition-transform translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[22px]" />
+                  <Switch.Thumb className="block w-5 h-5 bg-white rounded-full transition-transform translate-x-0.5 will-change-transform data-[state=checked]:translate-x-5.5" />
                 </Switch.Root>
               </div>
               <p className="text-xs text-slate-600">
@@ -259,33 +258,6 @@ export function PaperDiscovery() {
                       className="w-full pl-12 pr-4 py-3 bg-white/80 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm"
                     />
                   </div>
-                  <button
-                    onClick={() => setUploadModalOpen(true)}
-                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2"
-                  >
-                    <Upload className="w-5 h-5" />
-                    Upload PDF
-                  </button>
-                </div>
-
-                {/* AI Enhance Toggle */}
-                <div className="flex items-center gap-3 mt-4">
-                  <Switch.Root
-                    checked={aiEnhanced}
-                    onCheckedChange={setAiEnhanced}
-                    className={`w-11 h-6 rounded-full relative transition-colors ${
-                      aiEnhanced ? 'bg-indigo-600' : 'bg-slate-300'
-                    }`}
-                  >
-                    <Switch.Thumb className="block w-5 h-5 bg-white rounded-full transition-transform translate-x-0.5 will-change-transform data-[state=checked]:translate-x-[22px]" />
-                  </Switch.Root>
-                  <span className="text-sm text-slate-700">AI Enhance</span>
-                  {aiEnhanced && (
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs animate-in fade-in slide-in-from-left-2">
-                      <Sparkles className="w-3 h-3" />
-                      <span>AI Agent Active</span>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -304,42 +276,42 @@ export function PaperDiscovery() {
                     key={paper.id}
                     className="bg-white/80 backdrop-blur-sm border border-slate-200/50 rounded-xl p-6 hover:shadow-lg hover:border-indigo-200 transition-all group"
                   >
-                    <div className="mb-3">
-                      <h3 className="text-slate-900 mb-2 group-hover:text-indigo-700 transition-colors">
-                        {paper.title}
-                      </h3>
-                      <div className="flex items-center gap-3 text-sm">
-                        <span className="text-slate-700">
-                          {paper.authors.slice(0, 3).join(", ")}
-                          {paper.authors.length > 3 && " et al."}
-                        </span>
-                        <span className="text-slate-400">•</span>
-                        <span className="text-slate-500">
-                          {paper.year} · {paper.venue}
-                        </span>
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center gap-4 mb-2">
+                          <h3>
+                            <Link
+                              to={`/discovery/${paper.id}`}
+                              state={{ paper }}
+                              className="text-slate-900 hover:text-indigo-700 transition-colors"
+                            >
+                              {paper.title}
+                            </Link>
+                          </h3>
+                          <div className="flex gap-3 shrink-0">
+                            <button
+                              onClick={() => handleSavePaper(paper.id, paper.title)}
+                              title="Save to Workspace"
+                              className="p-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
+                            >
+                              <BookmarkPlus className="w-4 h-4" />
+                            </button>
+                            <button title="View Source" className="p-2 bg-slate-50 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors">
+                              <ExternalLink className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-slate-700">
+                            {paper.authors.slice(0, 3).join(", ")}
+                            {paper.authors.length > 3 && " et al."}
+                          </span>
+                          <span className="text-slate-400">•</span>
+                          <span className="text-slate-500">
+                            {paper.year} · {paper.venue}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-
-                    <p className="text-sm text-slate-600 leading-relaxed mb-4 line-clamp-3">
-                      {paper.abstract}
-                    </p>
-
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleSavePaper(paper.id, paper.title)}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors text-sm"
-                      >
-                        <BookmarkPlus className="w-4 h-4" />
-                        Save to Library
-                      </button>
-                      <button className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors text-sm">
-                        <FileText className="w-4 h-4" />
-                        Quick Summary
-                      </button>
-                      <button className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors text-sm">
-                        <ExternalLink className="w-4 h-4" />
-                        View Source
-                      </button>
                     </div>
                   </div>
                 ))}
@@ -351,8 +323,8 @@ export function PaperDiscovery() {
         {/* PDF Upload Modal */}
         <Dialog.Root open={uploadModalOpen} onOpenChange={setUploadModalOpen}>
           <Dialog.Portal>
-            <Dialog.Overlay className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm animate-in fade-in" />
-            <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95">
+            <Dialog.Overlay className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm animate-in fade-in" />
+            <Dialog.Content className="fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95">
               <div className="flex items-center justify-between mb-6">
                 <Dialog.Title className="text-slate-900">Upload Paper</Dialog.Title>
                 <Dialog.Close className="p-1 hover:bg-slate-100 rounded-lg transition-colors">

@@ -6,6 +6,7 @@ import { Workspaces as WorkspacePage } from '../pages/dashboard/WorkspacePage';
 import { Synthesis as SynthesisPage } from '../pages/dashboard/SynthesisPage';
 import { Analytics as AnalyticsPage } from '../pages/dashboard/AnalyticsPage';
 import { Settings as SettingsPage } from '../pages/dashboard/SettingsPage';
+import { PaperDetailPage } from '../pages/dashboard/PaperDetailPage';
 
 export default function AppRoutes() {
   return (
@@ -13,6 +14,7 @@ export default function AppRoutes() {
       <Route path="/" element={<DashboardLayout />}>
         <Route index element={<HomePage />} />
         <Route path="discovery" element={<DiscoveryPage />} />
+        <Route path="discovery/:paperId" element={<PaperDetailPage />} />
         <Route path="workspace" element={<WorkspacePage />} />
         <Route path="synthesis" element={<SynthesisPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />

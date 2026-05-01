@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { FileText, Clock, Sparkles, TrendingUp, AlertCircle, FlaskConical, Network, Search } from "lucide-react";
+import { FileText, Clock, Sparkles, TrendingUp, AlertCircle, FlaskConical, Search } from "lucide-react";
 
 export function Dashboard() {
   const projects = [
@@ -135,7 +135,7 @@ export function Dashboard() {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Link
-            to="/paper-discovery"
+            to="/discovery"
             className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 text-white hover:shadow-xl transition-all"
           >
             <div className="flex items-center justify-between mb-3">
