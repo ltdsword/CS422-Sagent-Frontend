@@ -50,7 +50,7 @@ export async function listWorkspacePapers(): Promise<WorkspacePaperDto[]> {
 
 export async function createWorkspacePaper(body: {
   workspace: string;
-  paper: number;
+  paper: string;
 }): Promise<WorkspacePaperDto> {
   const { data } = await axiosInstance.post<WorkspacePaperDto>(
     "/workspaces/workspace-paper/",
