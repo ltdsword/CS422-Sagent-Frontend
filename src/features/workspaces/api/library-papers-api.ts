@@ -19,10 +19,7 @@ function normalizePaper(raw: Record<string, unknown>): LibraryPaperRecord | null
   if (typeof id !== "number" && typeof id !== "string") {
     return null;
   }
-  const numericId = typeof id === "number" ? id : Number(id);
-  if (!Number.isFinite(numericId)) {
-    return null;
-  }
+  const idStr = String(id);
 
   const title = typeof raw.title === "string" ? raw.title : "Untitled paper";
   const authors = coerceAuthors(raw.authors ?? raw.author ?? raw.author_list);
@@ -37,7 +34,7 @@ function normalizePaper(raw: Record<string, unknown>): LibraryPaperRecord | null
   const venue = typeof venueRaw === "string" ? venueRaw : "";
 
   return {
-    id: numericId,
+    id: idStr,
     title,
     authors,
     year: year !== null && Number.isFinite(year) ? year : null,
