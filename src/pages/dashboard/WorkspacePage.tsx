@@ -40,7 +40,7 @@ import { useAuth } from "@/shared/hooks/useAuth";
 
 type WorkspacePaperRow = {
   linkId: number;
-  libraryPaperId: number;
+  libraryPaperId: string;
   title: string;
   authors: string;
   year: number | null;
@@ -50,13 +50,13 @@ type WorkspacePaperRow = {
 
 function buildPaperRows(
   links: WorkspacePaperDto[],
-  libraryById: Map<number, LibraryPaperRecord>,
+  libraryById: Map<string, LibraryPaperRecord>,
 ): WorkspacePaperRow[] {
   return links.map((link) => {
-    const meta = libraryById.get(link.paper);
+    const meta = libraryById.get(String(link.paper));
     return {
       linkId: link.id,
-      libraryPaperId: link.paper,
+      libraryPaperId: String(link.paper),
       title: meta?.title ?? `Paper #${link.paper}`,
       authors: meta?.authors ?? "—",
       year: meta?.year ?? null,
@@ -153,7 +153,7 @@ export function Workspaces() {
         fetchLibraryPapers().catch(() => [] as LibraryPaperRecord[]),
       ]);
 
-      const libraryById = new Map(lib.map((p) => [p.id, p]));
+      const libraryById = new Map(lib.map((p) => [String(p.id), p]));
       const forWorkspace = links.filter((l) => l.workspace === workspaceId);
       setPaperRows(buildPaperRows(forWorkspace, libraryById));
       setWorkspacePaperCounts((prev) => ({

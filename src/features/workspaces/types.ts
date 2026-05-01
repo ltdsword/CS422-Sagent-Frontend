@@ -9,7 +9,7 @@ export type WorkspaceDto = {
 export type WorkspacePaperDto = {
   id: number;
   workspace: string;
-  paper: number;
+  paper: string;
   tags: string[];
 };
 
@@ -20,7 +20,7 @@ export type TagDto = {
 };
 
 export type LibraryPaperRecord = {
-  id: number;
+  id: string;
   title: string;
   authors: string;
   year: number | null;
