@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Loader2, Sparkles, UserPlus } from "lucide-react";
 import { useAuth } from "@/shared/hooks/useAuth";
-import { AxiosError } from "axios";
+import type { AxiosError } from "axios";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";

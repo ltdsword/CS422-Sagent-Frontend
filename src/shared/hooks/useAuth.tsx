@@ -1,13 +1,13 @@
 import {
   createContext,
-  ReactNode,
   useContext,
   useEffect,
   useMemo,
   useState,
 } from "react";
+import type { ReactNode } from "react";
 import axiosInstance, { setAuthToken } from "@/shared/utils/axios-instance";
-import { AxiosError } from "axios";
+import type { AxiosError } from "axios";
 
 type AuthUser = {
   name: string;

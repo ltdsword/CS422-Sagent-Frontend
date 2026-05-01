@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Loader2, LogIn, Sparkles } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
