@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { 
   Search, 
   Sparkles, 
   Filter, 
   Upload, 
   BookmarkPlus, 
-  ExternalLink,
+  
   X,
   CheckCircle,
   Loader2
@@ -13,66 +13,40 @@ import {
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Switch from "@radix-ui/react-switch";
 import * as Slider from "@radix-ui/react-slider";
-import { Link } from "react-router-dom";
+ 
 import { toast, Toaster } from "sonner";
+import { useDiscovery } from "@/features/discovery/hooks/useDiscovery";
+import PaperList from "@/features/discovery/components/PaperList";
 
 export function PaperDiscovery() {
   const [diversityRanking, setDiversityRanking] = useState(false);
+  const [query, setQuery] = useState("");
+  const [author, setAuthor] = useState("");
+  const [keywords, setKeywords] = useState("");
+  const limit = 20;
+  const [searchBody, setSearchBody] = useState<Record<string, unknown> | undefined>(undefined);
+  const debounceRef = useRef<number | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [dateRange, setDateRange] = useState([2010, 2026]);
   const [dragActive, setDragActive] = useState(false);
 
+  const VENUE_OPTIONS = [
+    { id: 'arxiv', label: 'arXiv' },
+    { id: 'semanticScholar', label: 'Semantic Scholar' },
+    { id: 'nips', label: 'NIPS/NeurIPS' },
+    { id: 'icml', label: 'ICML' },
+  ];
+
   const [selectedVenues, setSelectedVenues] = useState({
-    arxiv: true,
-    semanticScholar: true,
+    arxiv: false,
+    semanticScholar: false,
     nips: false,
     icml: false,
   });
 
-  const papers = [
-    {
-      id: 1,
-      title: "Attention Is All You Need: Transformers for Sequence Modeling",
-      authors: ["Vaswani, A.", "Shazeer, N.", "Parmar, N.", "Uszkoreit, J."],
-      year: 2017,
-      venue: "NIPS",
-      abstract: "We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality..."
-    },
-    {
-      id: 2,
-      title: "Deep Residual Learning for Image Recognition",
-      authors: ["He, K.", "Zhang, X.", "Ren, S.", "Sun, J."],
-      year: 2016,
-      venue: "CVPR",
-      abstract: "Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously. We explicitly reformulate the layers as learning residual functions..."
-    },
-    {
-      id: 3,
-      title: "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
-      authors: ["Devlin, J.", "Chang, M.", "Lee, K.", "Toutanova, K."],
-      year: 2019,
-      venue: "NAACL",
-      abstract: "We introduce a new language representation model called BERT, which stands for Bidirectional Encoder Representations from Transformers. Unlike recent language representation models, BERT is designed to pre-train deep bidirectional representations..."
-    },
-    {
-      id: 4,
-      title: "Generative Adversarial Networks",
-      authors: ["Goodfellow, I.", "Pouget-Abadie, J.", "Mirza, M."],
-      year: 2014,
-      venue: "NIPS",
-      abstract: "We propose a new framework for estimating generative models via an adversarial process, in which we simultaneously train two models: a generative model G that captures the data distribution, and a discriminative model D that estimates the probability..."
-    },
-    {
-      id: 5,
-      title: "Neural Architecture Search with Reinforcement Learning",
-      authors: ["Zoph, B.", "Le, Q.V."],
-      year: 2017,
-      venue: "ICLR",
-      abstract: "Neural networks are powerful and flexible models that work well for many difficult learning tasks in image, speech and natural language understanding. Despite their success, neural networks are still hard to design. In this paper, we use a recurrent..."
-    },
-  ];
+  const { data: papers, loading } = useDiscovery(searchBody);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -127,6 +101,43 @@ export function PaperDiscovery() {
     setSelectedVenues(prev => ({ ...prev, [venue]: !prev[venue] }));
   };
 
+  // Build API body from UI state
+  const buildSearchBody = () => {
+    const venues = VENUE_OPTIONS.filter((v) => selectedVenues[v.id as keyof typeof selectedVenues]).map((v) => v.label);
+
+    const body: Record<string, unknown> = {
+      query: query.trim() || null,
+      limit,
+      start_year: dateRange[0],
+      end_year: dateRange[1],
+      venues: venues.length > 0 ? venues : undefined,
+      author: author.trim() || null,
+      keywords: keywords.trim() || null,
+    };
+
+    if (!body.query) {
+      body.sort_by = 'year';
+    }
+
+    Object.keys(body).forEach((k) => (body[k] === undefined ? delete body[k] : null));
+    return body;
+  };
+
+  // Debounce search body updates
+  useEffect(() => {
+    if (debounceRef.current) {
+      window.clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = window.setTimeout(() => {
+      setSearchBody(buildSearchBody());
+    }, 350);
+
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, author, keywords, dateRange, JSON.stringify(selectedVenues), limit]);
+
   return (
     <>
       <Toaster position="top-right" richColors />
@@ -178,12 +189,7 @@ export function PaperDiscovery() {
             <div className="mb-8">
               <label className="text-sm text-slate-700 mb-3 block">Venues</label>
               <div className="space-y-3">
-                {[
-                  { id: 'arxiv', label: 'arXiv' },
-                  { id: 'semanticScholar', label: 'Semantic Scholar' },
-                  { id: 'nips', label: 'NIPS/NeurIPS' },
-                  { id: 'icml', label: 'ICML' },
-                ].map(venue => (
+                {VENUE_OPTIONS.map((venue) => (
                   <label key={venue.id} className="flex items-center gap-2 cursor-pointer group">
                     <input
                       type="checkbox"
@@ -204,6 +210,8 @@ export function PaperDiscovery() {
               <label className="text-sm text-slate-700 mb-2 block">Author</label>
               <input
                 type="text"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
                 placeholder="e.g., Hinton, G."
                 className="w-full px-3 py-2 bg-white/50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
@@ -214,6 +222,8 @@ export function PaperDiscovery() {
               <label className="text-sm text-slate-700 mb-2 block">Keywords</label>
               <input
                 type="text"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
                 placeholder="e.g., transformer, attention"
                 className="w-full px-3 py-2 bg-white/50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
@@ -254,6 +264,8 @@ export function PaperDiscovery() {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                       type="text"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
                       placeholder="Search papers by title, author, or topic..."
                       className="w-full pl-12 pr-4 py-3 bg-white/80 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm"
                     />
@@ -266,55 +278,16 @@ export function PaperDiscovery() {
             <div className="max-w-5xl mx-auto p-6">
               <div className="flex items-center justify-between mb-6">
                 <p className="text-sm text-slate-600">
-                  Found {papers.length} papers matching your criteria
+                  Found {(papers ?? []).length} papers matching your criteria
                 </p>
               </div>
 
-              <div className="space-y-4">
-                {papers.map((paper) => (
-                  <div
-                    key={paper.id}
-                    className="bg-white/80 backdrop-blur-sm border border-slate-200/50 rounded-xl p-6 hover:shadow-lg hover:border-indigo-200 transition-all group"
-                  >
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center gap-4 mb-2">
-                          <h3>
-                            <Link
-                              to={`/discovery/${paper.id}`}
-                              state={{ paper }}
-                              className="text-slate-900 hover:text-indigo-700 transition-colors"
-                            >
-                              {paper.title}
-                            </Link>
-                          </h3>
-                          <div className="flex gap-3 shrink-0">
-                            <button
-                              onClick={() => handleSavePaper(paper.id, paper.title)}
-                              title="Save to Workspace"
-                              className="p-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
-                            >
-                              <BookmarkPlus className="w-4 h-4" />
-                            </button>
-                            <button title="View Source" className="p-2 bg-slate-50 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors">
-                              <ExternalLink className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm">
-                          <span className="text-slate-700">
-                            {paper.authors.slice(0, 3).join(", ")}
-                            {paper.authors.length > 3 && " et al."}
-                          </span>
-                          <span className="text-slate-400">•</span>
-                          <span className="text-slate-500">
-                            {paper.year} · {paper.venue}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="max-w-5xl">
+                {loading ? (
+                  <div className="py-6 text-center text-slate-600">Loading papers...</div>
+                ) : (
+                  <PaperList papers={papers ?? []} onSave={(p) => handleSavePaper(p.id, p.title)} />
+                )}
               </div>
             </div>
           </main>
