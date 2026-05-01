@@ -1,7 +1,9 @@
 import { Link } from "react-router";
-import { FileText, Clock, Sparkles, TrendingUp, AlertCircle, FlaskConical, Network, Search } from "lucide-react";
+import { FileText, Clock, Sparkles, TrendingUp, AlertCircle, FlaskConical, Search } from "lucide-react";
+import { useAuth } from "@/shared/hooks/useAuth";
 
 export function Dashboard() {
+  const { user, isAuthenticated } = useAuth();
   const projects = [
     {
       id: 1,
@@ -82,7 +84,7 @@ export function Dashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-slate-900 mb-2">Research Dashboard</h1>
-          <p className="text-slate-600">Welcome back, Dr. Chen. Here's an overview of your research projects.</p>
+          <p className="text-slate-600">{isAuthenticated ? `Welcome back, ${user.name}. Here's an overview of your research projects.` : "Welcome to Sagent. Here's an overview of research insights."}</p>
         </div>
 
         {/* Projects Grid */}
@@ -135,7 +137,7 @@ export function Dashboard() {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Link
-            to="/paper-discovery"
+            to="/discovery"
             className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 text-white hover:shadow-xl transition-all"
           >
             <div className="flex items-center justify-between mb-3">
