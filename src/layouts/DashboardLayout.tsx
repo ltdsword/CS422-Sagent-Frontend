@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from "react-router";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
   FolderOpen,
@@ -10,10 +10,13 @@ import {
   Bot
 } from "lucide-react";
 import { ChatBubble } from "../features/ai-agent/components/ChatBubble";
+import { useAuth } from "@/shared/hooks/useAuth";
 
 export default function DashboardLayout() {
   const location = useLocation();
-  
+  const navigate = useNavigate();
+  const { user, isAuthenticated, logout } = useAuth();
+
   const navItems = [
     { path: "/", label: "Home", icon: Home },
     { path: "/discovery", label: "Paper Discovery", icon: Compass },
@@ -30,9 +33,13 @@ export default function DashboardLayout() {
     return location.pathname.startsWith(path);
   };
 
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
+
   return (
     <div className="flex h-screen bg-slate-50">
-      {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col">
         <div className="p-6 border-b border-slate-200">
           <h1 className="text-slate-900 flex items-center gap-2">
@@ -41,20 +48,18 @@ export default function DashboardLayout() {
           </h1>
           <p className="text-sm text-slate-500 mt-1">Research Intelligence Platform</p>
         </div>
-        
+
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path);
-            
+
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                  active
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-slate-700 hover:bg-slate-100"
+                  active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-100"
                 }`}
               >
                 <Icon className={`w-5 h-5 ${active ? "text-blue-600" : "text-slate-500"}`} />
@@ -68,8 +73,8 @@ export default function DashboardLayout() {
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-500"></div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-slate-900 truncate">Dr. Sarah Chen</p>
-              <p className="text-xs text-slate-500 truncate">Researcher</p>
+              <p className="text-sm text-slate-900 truncate">{user.name}</p>
+              <p className="text-xs text-slate-500 truncate">{user.role}</p>
             </div>
             <button className="relative p-2 hover:bg-slate-100 rounded-lg shrink-0" aria-label="Notifications">
               <Bell className="w-5 h-5 text-slate-700" />
@@ -79,7 +84,6 @@ export default function DashboardLayout() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Content Area */}
         <main className="flex-1 overflow-auto">
@@ -87,7 +91,6 @@ export default function DashboardLayout() {
         </main>
       </div>
 
-      {/* Chat Bubble - Available throughout the app */}
       <ChatBubble />
     </div>
   );
