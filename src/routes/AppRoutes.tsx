@@ -28,7 +28,7 @@ export default function AppRoutes() {
       <Route path="/" element={<DashboardLayout />}>
         <Route index element={<HomePage />} />
         <Route path="discovery" element={<DiscoveryPage />} />
-        <Route path="discovery/:paperId" element={<PaperDetailPage />} />
+        {/* <Route path="discovery/:paperId" element={<PaperDetailPage />} /> */}
         <Route path="workspace" element={<WorkspacePage />} />
         <Route path="workspaces" element={<Navigate to="/workspace" replace />} />
         <Route path="synthesis" element={<SynthesisPage />} />
