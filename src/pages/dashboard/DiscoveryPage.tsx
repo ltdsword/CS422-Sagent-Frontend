@@ -15,7 +15,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as Switch from "@radix-ui/react-switch";
 import * as Slider from "@radix-ui/react-slider";
  
-import { toast, Toaster } from "sonner";
+import { Toaster } from "sonner";
 import { useDiscovery } from "@/features/discovery/hooks/useDiscovery";
 import PaperList from "@/features/discovery/components/PaperList";
 import type { DiscoveryPaper } from "@/features/discovery/types";
@@ -23,6 +23,7 @@ import { createWorkspacePaper, listWorkspaces } from "@/features/workspaces/api/
 import type { WorkspaceDto } from "@/features/workspaces/types";
 import { getApiErrorMessage } from "@/features/workspaces/utils/api-error";
 import { useAuth } from "@/shared/hooks/useAuth";
+import { appToast } from "@/shared/utils/toast-prefs";
 
 export function PaperDiscovery() {
   const { isAuthenticated } = useAuth();
@@ -37,7 +38,7 @@ export function PaperDiscovery() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [dateRange, setDateRange] = useState([2010, 2026]);
+  const [dateRange, setDateRange] = useState([2000, 2026]);
   const [dragActive, setDragActive] = useState(false);
 
   const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
@@ -93,7 +94,7 @@ export function PaperDiscovery() {
           clearInterval(interval);
           setIsUploading(false);
           setUploadModalOpen(false);
-          toast.success("Paper added successfully!", {
+          appToast.success("Paper added successfully!", {
             description: `${file.name} has been added to your library.`,
             icon: <CheckCircle className="w-4 h-4" />,
           });
@@ -107,7 +108,7 @@ export function PaperDiscovery() {
   const openWorkspacePicker = useCallback(
     (paper: DiscoveryPaper) => {
       if (!isAuthenticated) {
-        toast.message("Please log in", {
+        appToast.message("Please log in", {
           description: "You need to sign in to add papers to a workspace.",
           action: {
             label: "Log in",
@@ -136,7 +137,7 @@ export function PaperDiscovery() {
         }
       } catch (err) {
         if (!cancelled) {
-          toast.error(getApiErrorMessage(err, "Could not load workspaces"));
+          appToast.error(getApiErrorMessage(err, "Could not load workspaces"));
         }
       } finally {
         if (!cancelled) {
@@ -158,14 +159,14 @@ export function PaperDiscovery() {
       await createWorkspacePaper({ workspace: workspaceId, paper: paperToAdd.id });
       const shortTitle =
         paperToAdd.title.length > 72 ? `${paperToAdd.title.slice(0, 72)}…` : paperToAdd.title;
-      toast.success("Added to workspace", {
+      appToast.success("Added to workspace", {
         description: shortTitle,
         icon: <FolderOpen className="w-4 h-4" />,
       });
       setWorkspacePickerOpen(false);
       setPaperToAdd(null);
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Could not add paper to workspace"));
+      appToast.error(getApiErrorMessage(err, "Could not add paper to workspace"));
     } finally {
       setAddingWorkspaceId(null);
     }

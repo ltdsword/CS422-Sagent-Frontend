@@ -9,6 +9,8 @@ import { PaperDetailPage } from "../pages/dashboard/PaperDetailPage";
 import { Analytics as AnalyticsPage } from "../pages/dashboard/AnalyticsPage";
 import { Dashboard as HomePage } from "../pages/dashboard/HomePage";
 import { Settings as SettingsPage } from "../pages/dashboard/SettingsPage";
+import { ProfileSettings } from "../pages/dashboard/ProfileSettingsPage";
+import { NotificationSettings } from "../pages/dashboard/NotificationSettingsPage";
 import { Synthesis as SynthesisPage } from "../pages/dashboard/SynthesisPage";
 import { Workspaces as WorkspacePage } from "../pages/dashboard/WorkspacePage";
 
@@ -35,6 +37,8 @@ export default function AppRoutes() {
         <Route path="synthesis" element={<SynthesisPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="settings/profile" element={<ProfileSettings />} />
+        <Route path="settings/notifications" element={<NotificationSettings />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

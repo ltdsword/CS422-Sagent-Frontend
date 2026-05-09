@@ -1,6 +1,9 @@
-import { Settings as SettingsIcon, User, Bell, Shield, Database } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { User, Bell, Shield, Database } from "lucide-react";
 
 export function Settings() {
+  const navigate = useNavigate();
+
   const settingsSections = [
     {
       id: "profile",
@@ -43,6 +46,17 @@ export function Settings() {
               <button
                 key={section.id}
                 className="w-full bg-white rounded-xl border border-slate-200 p-6 text-left hover:border-blue-300 transition-colors"
+                onClick={() => {
+                  if (section.id === "profile") {
+                    navigate("/settings/profile");
+                    return;
+                  }
+                  if (section.id === "notifications") {
+                    navigate("/settings/notifications");
+                    return;
+                  }
+                  // Other sections can be wired later
+                }}
               >
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">

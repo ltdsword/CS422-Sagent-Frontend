@@ -1,47 +1,70 @@
-import { Link } from "react-router";
-import { FileText, Clock, Sparkles, TrendingUp, AlertCircle, FlaskConical, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  FileText,
+  Clock,
+  Sparkles,
+  TrendingUp,
+  AlertCircle,
+  FlaskConical,
+  Search,
+  Loader2,
+  FolderOpen,
+  LogIn,
+} from "lucide-react";
 import { useAuth } from "@/shared/hooks/useAuth";
+import { listWorkspacePapers, listWorkspaces } from "@/features/workspaces/api/workspaces-api";
+import type { WorkspaceDto, WorkspacePaperDto } from "@/features/workspaces/types";
+import { getApiErrorMessage } from "@/features/workspaces/utils/api-error";
+import { isAxiosError } from "axios";
 
 export function Dashboard() {
-  const { user, isAuthenticated } = useAuth();
-  const projects = [
-    {
-      id: 1,
-      title: "AI in Healthcare",
-      paperCount: 47,
-      lastActivity: "2 hours ago",
-      agentStatus: "Critic Agent: Reviewing Consistency",
-      agentType: "critic",
-      color: "blue"
-    },
-    {
-      id: 2,
-      title: "Climate Change ML Models",
-      paperCount: 32,
-      lastActivity: "5 hours ago",
-      agentStatus: "Synthesizer Agent: Generating Summary",
-      agentType: "synthesizer",
-      color: "green"
-    },
-    {
-      id: 3,
-      title: "Quantum Computing Advances",
-      paperCount: 28,
-      lastActivity: "1 day ago",
-      agentStatus: "Critic Agent: Cross-validating Claims",
-      agentType: "critic",
-      color: "purple"
-    },
-    {
-      id: 4,
-      title: "Neural Architecture Search",
-      paperCount: 53,
-      lastActivity: "3 hours ago",
-      agentStatus: "Synthesizer Agent: Comparing Methods",
-      agentType: "synthesizer",
-      color: "orange"
-    },
-  ];
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
+  const [paperCounts, setPaperCounts] = useState<Record<string, number>>({});
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+
+  const loadProjects = useCallback(async () => {
+    if (!isAuthenticated) {
+      setWorkspaces([]);
+      setPaperCounts({});
+      setProjectsLoading(false);
+      setProjectsError(null);
+      return;
+    }
+
+    setProjectsLoading(true);
+    setProjectsError(null);
+    try {
+      const [ws, links] = await Promise.all([listWorkspaces(), listWorkspacePapers().catch(() => [] as WorkspacePaperDto[])]);
+      setWorkspaces(ws);
+
+      const counts: Record<string, number> = {};
+      for (const l of links) {
+        const key = String(l.workspace);
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+      setPaperCounts(counts);
+    } catch (err) {
+      if (isAxiosError(err) && err.response?.status === 401) {
+        await logout();
+        navigate("/login", { replace: true });
+        return;
+      }
+      setProjectsError(getApiErrorMessage(err, "Could not load workspaces"));
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, [isAuthenticated, logout, navigate]);
+
+  useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
+
+  const activeWorkspaces = useMemo(() => workspaces.slice(0, 4), [workspaces]);
 
   const agentActivities = [
     {
@@ -90,48 +113,87 @@ export function Dashboard() {
         {/* Projects Grid */}
         <div className="mb-8">
           <h2 className="text-slate-900 mb-4">Active Projects</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-            {projects.map((project) => (
+          {projectsLoading ? (
+            <div className="flex items-center justify-center py-10 text-slate-600 gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" aria-hidden />
+              Loading workspaces…
+            </div>
+          ) : projectsError ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <p className="text-sm text-red-700">{projectsError}</p>
+              <button
+                type="button"
+                onClick={() => void loadProjects()}
+                className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          ) : !isAuthenticated ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
+              <LogIn className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h3 className="text-slate-900 mb-2">Log in to view your workspaces</h3>
+              <p className="text-slate-600 mb-6">Active projects are pulled from your workspaces.</p>
               <Link
-                key={project.id}
-                to="/pdf-reader"
+                to="/login"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <LogIn className="w-4 h-4" />
+                Log in
+              </Link>
+            </div>
+          ) : activeWorkspaces.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
+              <FolderOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h3 className="text-slate-900 mb-2">No workspaces yet</h3>
+              <p className="text-slate-600 mb-6">Create a workspace to start organizing papers.</p>
+              <Link
+                to="/workspace"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Go to Workspaces
+              </Link>
+            </div>
+          ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+            {activeWorkspaces.map((ws) => (
+              <Link
+                key={ws.id}
+                to="/workspace"
                 className="block bg-white rounded-xl border border-slate-200 p-6 hover:border-blue-300 hover:shadow-lg transition-all"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="text-slate-900 mb-2">{project.title}</h3>
+                    <h3 className="text-slate-900 mb-2">{ws.name}</h3>
                     <div className="flex items-center gap-4 text-sm text-slate-600">
                       <div className="flex items-center gap-1">
                         <FileText className="w-4 h-4" />
-                        <span>{project.paperCount} papers</span>
+                        <span>{paperCounts[ws.id] ?? 0} papers</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <Clock className="w-4 h-4" />
-                        <span>{project.lastActivity}</span>
+                        <span>Created {new Date(ws.created_date).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
-                  <div className={`w-12 h-12 rounded-lg bg-gradient-to-br from-${project.color}-500 to-${project.color}-600 flex items-center justify-center`}>
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
                     <FileText className="w-6 h-6 text-white" />
                   </div>
                 </div>
 
                 {/* AI Agent Status */}
-                <div className={`p-3 rounded-lg flex items-start gap-2 ${
-                  project.agentType === 'critic' 
-                    ? 'bg-amber-50 border border-amber-200' 
-                    : 'bg-blue-50 border border-blue-200'
-                }`}>
-                  <Sparkles className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
-                    project.agentType === 'critic' ? 'text-amber-600' : 'text-blue-600'
-                  }`} />
+                <div className="p-3 rounded-lg flex items-start gap-2 bg-blue-50 border border-blue-200">
+                  <Sparkles className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-600" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-900">{project.agentStatus}</p>
+                    <p className="text-sm text-slate-900 line-clamp-2">
+                      {ws.description?.trim() ? ws.description : "Open workspace to view linked papers and AI insights."}
+                    </p>
                   </div>
                 </div>
               </Link>
             ))}
           </div>
+          )}
         </div>
 
         {/* Quick Actions */}
