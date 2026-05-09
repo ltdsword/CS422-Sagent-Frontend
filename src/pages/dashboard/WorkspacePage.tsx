@@ -21,7 +21,8 @@ import {
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { format, parseISO } from "date-fns";
-import { toast, Toaster } from "sonner";
+import { Toaster } from "sonner";
+import { appToast } from "@/shared/utils/toast-prefs";
 
 import {
   createTag,
@@ -165,7 +166,7 @@ export function Workspaces() {
 
   /** Same idea as the API “credentials not provided” response—tell the user clearly, without raw Django text. */
   const notifyLoginRequiredForWorkspaces = useCallback(() => {
-    toast.message("Please log in", {
+    appToast.message("Please log in", {
       description: "You need to sign in to view and manage workspaces.",
       action: {
         label: "Log in",
@@ -196,7 +197,7 @@ export function Workspaces() {
       const data = await listWorkspaces();
       setWorkspaces(data);
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Could not load workspaces"));
+      appToast.error(getApiErrorMessage(err, "Could not load workspaces"));
     } finally {
       setListLoading(false);
     }
@@ -237,7 +238,7 @@ export function Workspaces() {
         [workspaceId]: forWorkspace.length,
       }));
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Could not load workspace papers"));
+      appToast.error(getApiErrorMessage(err, "Could not load workspace papers"));
     } finally {
       setDetailLoading(false);
     }
@@ -289,16 +290,16 @@ export function Workspaces() {
 
     const name = newWorkspaceName.trim();
     if (!name) {
-      toast.error("Please enter a workspace name");
+      appToast.error("Please enter a workspace name");
       return;
     }
     if (name.length > 50) {
-      toast.error("Name must be at most 50 characters");
+      appToast.error("Name must be at most 50 characters");
       return;
     }
     const description = newWorkspaceDescription.trim();
     if (description.length > 500) {
-      toast.error("Description must be at most 500 characters");
+      appToast.error("Description must be at most 500 characters");
       return;
     }
 
@@ -306,13 +307,13 @@ export function Workspaces() {
       const created = await createWorkspace({ name, description });
       setWorkspaces((prev) => [created, ...prev.filter((w) => w.id !== created.id)]);
       setWorkspacePaperCounts((prev) => ({ ...prev, [created.id]: 0 }));
-      toast.success("Workspace created");
+      appToast.success("Workspace created");
       setNewWorkspaceName("");
       setNewWorkspaceDescription("");
       setCreateModalOpen(false);
       await refreshWorkspaceList();
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Could not create workspace"));
+      appToast.error(getApiErrorMessage(err, "Could not create workspace"));
     }
   };
 
@@ -329,27 +330,27 @@ export function Workspaces() {
     }
     const name = editName.trim();
     if (!name) {
-      toast.error("Please enter a workspace name");
+      appToast.error("Please enter a workspace name");
       return;
     }
     if (name.length > 50) {
-      toast.error("Name must be at most 50 characters");
+      appToast.error("Name must be at most 50 characters");
       return;
     }
     const description = editDescription.trim();
     if (description.length > 500) {
-      toast.error("Description must be at most 500 characters");
+      appToast.error("Description must be at most 500 characters");
       return;
     }
 
     try {
       await updateWorkspace(editingWorkspace.id, { name, description });
-      toast.success("Workspace updated");
+      appToast.success("Workspace updated");
       setEditModalOpen(false);
       setEditingWorkspace(null);
       await refreshWorkspaceList();
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Could not update workspace"));
+      appToast.error(getApiErrorMessage(err, "Could not update workspace"));
     }
   };
 
@@ -359,7 +360,7 @@ export function Workspaces() {
     }
     try {
       await deleteWorkspace(workspaceId);
-      toast.success(`"${workspaceName}" deleted`);
+      appToast.success(`"${workspaceName}" deleted`);
       if (selectedWorkspaceId === workspaceId) {
         setSelectedWorkspaceId(null);
       }
@@ -370,7 +371,7 @@ export function Workspaces() {
       });
       await refreshWorkspaceList();
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Could not delete workspace"));
+      appToast.error(getApiErrorMessage(err, "Could not delete workspace"));
     }
   };
 
@@ -380,20 +381,20 @@ export function Workspaces() {
       return;
     }
     if (raw.length > 20) {
-      toast.error("Tag must be at most 20 characters");
+      appToast.error("Tag must be at most 20 characters");
       return;
     }
 
     try {
       await createTag({ workspace_paper: linkId, name: raw });
-      toast.success(`Tag "${raw}" added`);
+      appToast.success(`Tag "${raw}" added`);
       setTagInputValue("");
       setEditingTagForLinkId(null);
       if (selectedWorkspaceId) {
         await refreshWorkspaceDetail(selectedWorkspaceId);
       }
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Could not add tag"));
+      appToast.error(getApiErrorMessage(err, "Could not add tag"));
     }
   };
 
@@ -402,16 +403,16 @@ export function Workspaces() {
       const tags = await listTags();
       const match = tags.find((t) => t.workspace_paper === linkId && t.name === tagName);
       if (!match) {
-        toast.error("Tag not found; refresh and try again");
+        appToast.error("Tag not found; refresh and try again");
         return;
       }
       await deleteTag(match.id);
-      toast.success("Tag removed");
+      appToast.success("Tag removed");
       if (selectedWorkspaceId) {
         await refreshWorkspaceDetail(selectedWorkspaceId);
       }
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Could not remove tag"));
+      appToast.error(getApiErrorMessage(err, "Could not remove tag"));
     }
   };
 
@@ -421,12 +422,12 @@ export function Workspaces() {
     }
     try {
       await deleteWorkspacePaper(linkId);
-      toast.success("Paper removed from workspace");
+      appToast.success("Paper removed from workspace");
       if (selectedWorkspaceId) {
         await refreshWorkspaceDetail(selectedWorkspaceId);
       }
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Could not remove paper"));
+      appToast.error(getApiErrorMessage(err, "Could not remove paper"));
     }
   };
 
