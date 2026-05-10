@@ -4,7 +4,6 @@ import {
   Search, 
   Folder, 
   FlaskConical, 
-  BarChart2, 
   Settings 
 } from 'lucide-react';
 
@@ -24,7 +23,6 @@ const Sidebar = () => {
         <NavItem to="/discovery" icon={<Search size={18} />} label="Paper Discovery" />
         <NavItem to="/workspace" icon={<Folder size={18} />} label="Workspaces" />
         <NavItem to="/synthesis" icon={<FlaskConical size={18} />} label="Synthesis Lab" />
-        <NavItem to="/analytics" icon={<BarChart2 size={18} />} label="Analytics" />
         <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" />
       </nav>
 

@@ -3,7 +3,6 @@ import {
   Home,
   FolderOpen,
   FlaskConical,
-  BarChart3,
   Settings as SettingsIcon,
   Compass,
   LogOut,
@@ -23,7 +22,6 @@ export default function DashboardLayout() {
     { path: "/discovery", label: "Paper Discovery", icon: Compass },
     { path: "/workspace", label: "Workspace", icon: FolderOpen },
     { path: "/synthesis", label: "Synthesis Lab", icon: FlaskConical },
-    { path: "/analytics", label: "Analytics", icon: BarChart3 },
     { path: "/settings", label: "Settings", icon: SettingsIcon },
   ];
 

@@ -1,14 +1,23 @@
-import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Sparkles, Minimize2 } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { MessageCircle, X, Send, Sparkles, Minimize2, FolderOpen } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { TaskProgressBar } from "./TaskProgressBar";
+import { useTasks } from "../context/TaskContext";
+import { startProgressTracking, applyAgentProgress } from "../utils/demoTasks";
+import { triggerAgentWorkflow, fetchChatHistory, saveChatMessage } from "../api/agentApi";
+import { useTaskPolling } from "../hooks/useTaskPolling";
 
 interface Message {
   id: string;
   text: string;
   sender: "user" | "agent";
   timestamp: Date;
+  workspaceId?: string;
 }
 
 export function ChatBubble() {
+  const navigate = useNavigate();
+  const { addTask, updateTask, clearAllTasks } = useTasks();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -20,7 +29,117 @@ export function ChatBubble() {
   ]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  // Track the UI progress bar task ID so we can update or clear it
+  const uiTaskIdRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const pushMessage = useCallback((text: string, sender: "user" | "agent" = "agent", workspaceId?: string) => {
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      text,
+      sender,
+      timestamp: new Date(),
+      workspaceId
+    }]);
+    saveChatMessage(text, sender).catch(err => console.error("Failed to save message:", err));
+  }, []);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const history = await fetchChatHistory();
+        if (history && history.length > 0) {
+          const loadedMessages: Message[] = history.map((msg: any) => ({
+            id: msg.id?.toString() || Date.now().toString() + Math.random(),
+            text: msg.message,
+            sender: msg.sender,
+            timestamp: msg.created_at ? new Date(msg.created_at) : new Date()
+          }));
+          setMessages(loadedMessages);
+        }
+      } catch (err) {
+        console.error("Failed to fetch chat history:", err);
+      }
+    };
+    loadHistory();
+  }, []);
+
+  // Single poller — handles SUCCESS, FAILURE, and PROCESSING progress updates
+  useTaskPolling(activeTaskId, {
+    onProgress: (agentName) => {
+      if (uiTaskIdRef.current) {
+        applyAgentProgress(agentName, uiTaskIdRef.current, updateTask);
+        // Dispatch event to refresh activity feed in other components
+        window.dispatchEvent(new CustomEvent("sagent:activity-updated"));
+      }
+    },
+    onWorkspaceCreated: (workspaceId) => {
+      // Dispatch a browser custom event so any workspace list component can refetch
+      window.dispatchEvent(new CustomEvent("sagent:workspace-created", {
+        detail: { workspaceId }
+      }));
+    },
+    onSuccess: (response) => {
+      setActiveTaskId(null);
+      if (uiTaskIdRef.current) {
+        updateTask(uiTaskIdRef.current, {
+          status: "completed",
+          progress: 100,
+          message: "All agents finished — artifact ready!",
+        });
+        uiTaskIdRef.current = null;
+      }
+
+      const result     = response.result || {};
+      const artifactId = response.artifact_id ?? result.artifact_id;
+      const wsId       = response.workspace_id ?? result.workspace_id;
+      const papersAdded = response.papers_added ?? result.papers_added ?? 0;
+      const draft      = result.synthesis_draft || "";
+      let preview = "Generated synthesis draft.";
+      if (draft) {
+        // Try to extract the Quick Summary section if it exists
+        const quickSummaryMatch = draft.match(/## Quick summary[^]*?(?=---|\n## )/i);
+        if (quickSummaryMatch && quickSummaryMatch[0]) {
+          preview = quickSummaryMatch[0].trim();
+        } else {
+        // Use a much larger preview limit to avoid truncation
+        preview = draft.slice(0, 5000);
+        if (draft.length > 5000) preview += "…";
+      }
+    }
+
+      if (artifactId && wsId) {
+        // Deep-link to the workspace that contains the artifact
+        pushMessage(
+          `✅ Agent Process is complete!\n\n` +
+          `${preview}\n\n` +
+          `The workspace, papers and the generated artifacts are located at:`,
+          "agent",
+          wsId
+        );
+      } else if (artifactId) {
+        pushMessage(
+          `✅ Agent Process is complete!\n\n` +
+          `${preview}\n\n` +
+          `The generated artifact was saved.`
+        );
+      } else if (draft) {
+        pushMessage(
+          `✅ Agent Process is complete!\n\n` +
+          `${preview}`
+        );
+      } else {
+        pushMessage("✅ Agent Process is complete!");
+      }
+    },
+    onError: (error) => {
+      setActiveTaskId(null);
+      clearAllTasks();
+      uiTaskIdRef.current = null;
+      pushMessage(`❌ The agent pipeline encountered an error:\n\n${error}\n\nPlease try again or rephrase your request.`);
+    }
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -30,31 +149,34 @@ export function ChatBubble() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: inputValue,
-      sender: "user",
-      timestamp: new Date()
-    };
-
-    setMessages([...messages, newMessage]);
+    const query = inputValue.trim();
+    pushMessage(query, "user");
     setInputValue("");
-
-    // Simulate agent typing
     setIsTyping(true);
-    setTimeout(() => {
-      const agentResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "I understand your question. Let me help you with that. As your research assistant, I can help you analyze papers, organize your workspace, and provide insights on your research topics.",
-        sender: "agent",
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, agentResponse]);
+
+    try {
+      const res = await triggerAgentWorkflow({ prompt: query });
+
+      if (res.reply) {
+        // Trivial conversational query — handled synchronously by backend LLM Fast-Path
+        pushMessage(res.reply);
+      } else if (res.task_id) {
+        // Complex research query — start progress bar THEN begin polling
+        pushMessage("I've started working on your request. The agents are now running — I'll update you here when they're done.");
+        // Create the initial UI task entry (no polling inside)
+        uiTaskIdRef.current = startProgressTracking(addTask);
+        setActiveTaskId(res.task_id);
+      }
+    } catch (e: any) {
+      console.error("Failed to trigger agent workflow", e);
+      const detail = e?.response?.data?.detail || e?.message || "Unknown error.";
+      pushMessage(`❌ Failed to connect to the orchestration engine: ${detail}`);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -116,7 +238,21 @@ export function ChatBubble() {
                       <span className="text-xs font-medium text-blue-600">Sagent AI</span>
                     </div>
                   )}
-                  <p className="text-sm leading-relaxed">{message.text}</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                  
+                  {message.workspaceId && (
+                    <button
+                      onClick={() => {
+                        setIsOpen(false);
+                        navigate(`/workspace?id=${message.workspaceId}`);
+                      }}
+                      className="mt-3 w-full py-2 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold border border-blue-200 hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5" />
+                      View Research Workspace
+                    </button>
+                  )}
+
                   <p
                     className={`text-xs mt-1 ${
                       message.sender === "user" ? "text-blue-100" : "text-slate-400"
@@ -148,6 +284,9 @@ export function ChatBubble() {
             )}
             <div ref={messagesEndRef} />
           </div>
+
+          {/* Smart Integration: Embedded Progress Bar */}
+          <TaskProgressBar isInChat={true} />
 
           {/* Input */}
           <div className="p-4 bg-white border-t border-slate-200 rounded-b-2xl">
@@ -199,6 +338,9 @@ export function ChatBubble() {
           Chat with Sagent AI
         </div>
       )}
+
+      {/* Smart Integration: Standalone Progress Bar */}
+      {!isOpen && <TaskProgressBar isInChat={false} />}
     </>
   );
 }

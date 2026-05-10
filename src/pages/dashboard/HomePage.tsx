@@ -17,6 +17,8 @@ import { listWorkspacePapers, listWorkspaces } from "@/features/workspaces/api/w
 import type { WorkspaceDto, WorkspacePaperDto } from "@/features/workspaces/types";
 import { getApiErrorMessage } from "@/features/workspaces/utils/api-error";
 import { isAxiosError } from "axios";
+import { fetchAgentActivities } from "@/features/ai-agent/api/agentApi";
+import { formatDistanceToNow, parseISO } from "date-fns";
 
 export function Dashboard() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -26,6 +28,9 @@ export function Dashboard() {
   const [paperCounts, setPaperCounts] = useState<Record<string, number>>({});
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
+
+  const [activities, setActivities] = useState<any[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
 
   const loadProjects = useCallback(async () => {
     if (!isAuthenticated) {
@@ -60,46 +65,44 @@ export function Dashboard() {
     }
   }, [isAuthenticated, logout, navigate]);
 
+  const loadActivities = useCallback(async () => {
+    if (!isAuthenticated) {
+      setActivities([]);
+      return;
+    }
+    setActivitiesLoading(true);
+    try {
+      const data = await fetchAgentActivities();
+      setActivities(data);
+    } catch (err) {
+      console.error("Failed to load agent activities", err);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }, [isAuthenticated]);
+
   useEffect(() => {
     void loadProjects();
-  }, [loadProjects]);
+    void loadActivities();
+
+    const handleUpdate = () => void loadActivities();
+    window.addEventListener("sagent:activity-updated", handleUpdate);
+    
+    // Poll for activities every 10 seconds if authenticated
+    let interval: any;
+    if (isAuthenticated) {
+      interval = setInterval(() => {
+        void loadActivities();
+      }, 10000);
+    }
+
+    return () => {
+      window.removeEventListener("sagent:activity-updated", handleUpdate);
+      if (interval) clearInterval(interval);
+    };
+  }, [loadProjects, loadActivities, isAuthenticated]);
 
   const activeWorkspaces = useMemo(() => workspaces.slice(0, 4), [workspaces]);
-
-  const agentActivities = [
-    {
-      id: 1,
-      agent: "Synthesizer Agent",
-      project: "AI in Healthcare",
-      activity: "Generated literature review section for \"Deep Learning in Diagnosis\"",
-      time: "5 minutes ago",
-      type: "synthesizer"
-    },
-    {
-      id: 2,
-      agent: "Critic Agent",
-      project: "AI in Healthcare",
-      activity: "Flagged potential inconsistency in dataset descriptions (Papers #12, #23)",
-      time: "12 minutes ago",
-      type: "critic"
-    },
-    {
-      id: 3,
-      agent: "Synthesizer Agent",
-      project: "Climate Change ML Models",
-      activity: "Created comparison table for 8 forecasting models",
-      time: "1 hour ago",
-      type: "synthesizer"
-    },
-    {
-      id: 4,
-      agent: "Critic Agent",
-      project: "Neural Architecture Search",
-      activity: "Validated reproducibility scores across 15 papers",
-      time: "2 hours ago",
-      type: "critic"
-    },
-  ];
 
   return (
     <div className="p-8">
@@ -197,7 +200,7 @@ export function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <Link
             to="/discovery"
             className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 text-white hover:shadow-xl transition-all"
@@ -222,56 +225,76 @@ export function Dashboard() {
             <p className="text-sm text-blue-100">Compare and synthesize papers</p>
           </Link>
 
-          <Link
-            to="/analytics"
-            className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl p-6 text-white hover:shadow-xl transition-all"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <TrendingUp className="w-8 h-8" />
-              <AlertCircle className="w-6 h-6 opacity-75" />
-            </div>
-            <h3 className="mb-1">Analytics</h3>
-            <p className="text-sm text-slate-300">View research trends and gaps</p>
-          </Link>
         </div>
 
         {/* Agent Activity Feed */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-slate-900">Agent Activity Feed</h2>
-            <button className="text-sm text-blue-600 hover:text-blue-700">View All</button>
+            <div className="flex items-center gap-2">
+              <h2 className="text-slate-900">Agent Activity Feed</h2>
+              {activitiesLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+            </div>
+            <button 
+              onClick={() => void loadActivities()}
+              className="text-sm text-blue-600 hover:text-blue-700"
+            >
+              Refresh
+            </button>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-200">
-            {agentActivities.map((item) => (
-              <div key={item.id} className="p-4 hover:bg-slate-50 transition-colors">
-                <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    item.type === 'critic'
-                      ? 'bg-amber-100'
-                      : 'bg-blue-100'
-                  }`}>
-                    <Sparkles className={`w-5 h-5 ${
-                      item.type === 'critic' ? 'text-amber-600' : 'text-blue-600'
-                    }`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-sm px-2 py-0.5 rounded ${
-                        item.type === 'critic'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {item.agent}
-                      </span>
-                      <span className="text-sm text-slate-500">•</span>
-                      <span className="text-sm text-slate-700">{item.project}</span>
+          
+          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-200 overflow-hidden">
+            {!isAuthenticated ? (
+              <div className="p-10 text-center text-slate-500 text-sm">
+                Log in to see agent activities.
+              </div>
+            ) : activities.length === 0 ? (
+              <div className="p-10 text-center text-slate-500 text-sm">
+                No recent agent activity. Start a research workflow to see agents in action.
+              </div>
+            ) : (
+              activities.map((item) => (
+                <div key={item.id} className="p-4 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      item.name === 'Critic'
+                        ? 'bg-amber-100'
+                        : 'bg-blue-100'
+                    }`}>
+                      <Sparkles className={`w-5 h-5 ${
+                        item.name === 'Critic' ? 'text-amber-600' : 'text-blue-600'
+                      }`} />
                     </div>
-                    <p className="text-sm text-slate-900 mb-1">{item.activity}</p>
-                    <p className="text-xs text-slate-500">{item.time}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                          item.name === 'Critic'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {item.name} Agent
+                        </span>
+                        <span className="text-sm text-slate-500">•</span>
+                        <span className="text-sm font-medium text-slate-700 truncate">
+                          {item.workspace_name || "General Task"}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-900 mb-1">
+                        {item.name === 'Synthesizer' && "Compiling research findings into a synthesis report..."}
+                        {item.name === 'Critic' && "Reviewing generated content for factual consistency..."}
+                        {item.name === 'Finder' && "Searching the paper database for relevant academic sources..."}
+                        {item.name === 'Refiner' && "Expanding research query for optimal search coverage..."}
+                        {item.name === 'Reader' && "Extracting deep metrics and methodology from selected papers..."}
+                        {item.name === 'Action' && "Managing workspace state and organizing paper links..."}
+                        {item.name === 'Q&A' && "Retrieving contextual answers from the knowledge base..."}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {formatDistanceToNow(parseISO(item.timestamp), { addSuffix: true })}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

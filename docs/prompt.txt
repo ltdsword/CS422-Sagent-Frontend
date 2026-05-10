@@ -12,16 +12,3 @@ cd CS422-Sagent-Frontend
 to navigate to the correct folder.
 
 ------------------------------------------
-
-USER PROMPT:
-
-We are currently having these bugs:
-
-1. The UI is nice and identical to our images/. However, when i clicked in Paper Discovery, workspace and Synthesis Lab
-in the sidebar, it does not display anything. What is the issue? Does the path correct?
-
-2. In clicking "Workspace", we can see the url http://localhost:5173/projects; which is mismatching because we wanna change this into "workspace"
-
-Pls read the code, resolve the problem and fix the code so that it can run.
-
-And pls check for other path, does they correct?

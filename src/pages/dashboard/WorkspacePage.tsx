@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FolderOpen,
   LogIn,
@@ -40,6 +40,9 @@ import { getLibraryPaper } from "@/features/workspaces/api/library-papers-api";
 import type { LibraryPaperRecord, TagDto, WorkspaceDto, WorkspacePaperDto } from "@/features/workspaces/types";
 import { getApiErrorMessage } from "@/features/workspaces/utils/api-error";
 import { useAuth } from "@/shared/hooks/useAuth";
+import { fetchWorkspaceArtifacts } from "@/features/ai-agent/api/agentApi";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type WorkspacePaperRow = {
   linkId: number;
@@ -152,10 +155,24 @@ export function Workspaces() {
 
   const [tagInputValue, setTagInputValue] = useState("");
   const [editingTagForLinkId, setEditingTagForLinkId] = useState<number | null>(null);
+
+  const [workspaceArtifacts, setWorkspaceArtifacts] = useState<any[]>([]);
+  const [artifactsLoading, setArtifactsLoading] = useState(false);
+  const [selectedArtifact, setSelectedArtifact] = useState<any | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const workspaceIdFromUrl = searchParams.get("id");
+
   const selectedWorkspace = useMemo(
     () => workspaces.find((w) => w.id === selectedWorkspaceId) ?? null,
     [workspaces, selectedWorkspaceId],
   );
+
+  useEffect(() => {
+    if (workspaceIdFromUrl && workspaces.length > 0) {
+      setSelectedWorkspaceId(workspaceIdFromUrl);
+      // Clean up URL without triggering re-render if possible, or just leave it
+    }
+  }, [workspaceIdFromUrl, workspaces]);
 
   const paperCountForSelected = useMemo(() => {
     if (!selectedWorkspaceId) {
@@ -194,8 +211,18 @@ export function Workspaces() {
 
     setListLoading(true);
     try {
-      const data = await listWorkspaces();
+      const [data, links] = await Promise.all([
+        listWorkspaces(),
+        listWorkspacePapers().catch(() => [] as WorkspacePaperDto[])
+      ]);
       setWorkspaces(data);
+      
+      const counts: Record<string, number> = {};
+      for (const l of links) {
+        const key = String(l.workspace);
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+      setWorkspacePaperCounts(counts);
     } catch (err) {
       appToast.error(getApiErrorMessage(err, "Could not load workspaces"));
     } finally {
@@ -241,6 +268,17 @@ export function Workspaces() {
       appToast.error(getApiErrorMessage(err, "Could not load workspace papers"));
     } finally {
       setDetailLoading(false);
+    }
+
+    // Also fetch artifacts in background
+    setArtifactsLoading(true);
+    try {
+      const artifacts = await fetchWorkspaceArtifacts(workspaceId);
+      setWorkspaceArtifacts(artifacts);
+    } catch (err) {
+      console.error("Failed to fetch workspace artifacts", err);
+    } finally {
+      setArtifactsLoading(false);
     }
   }, [isAuthenticated]);
 
@@ -663,19 +701,86 @@ export function Workspaces() {
 
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-xl border border-slate-200 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className="w-5 h-5 text-indigo-600" />
-                    <h3 className="text-slate-900">AI insights</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-indigo-600" />
+                      <h3 className="text-slate-900">AI insights</h3>
+                    </div>
+                    {artifactsLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
                   </div>
-                  <p className="text-sm text-slate-600">
-                    Generated artifacts for this workspace will appear here when connected from
-                    Synthesis Lab.
-                  </p>
+                  
+                  {workspaceArtifacts.length === 0 ? (
+                    <p className="text-sm text-slate-600">
+                      No AI-generated artifacts found for this workspace. Use the Sagent AI assistant to synthesize findings.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {workspaceArtifacts.map((artifact) => (
+                        <button
+                          key={artifact.id}
+                          onClick={() => setSelectedArtifact(artifact)}
+                          className="w-full text-left p-3 rounded-lg border border-slate-100 hover:border-blue-300 hover:bg-blue-50 transition-all group"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-blue-100 text-blue-600 rounded-md group-hover:scale-110 transition-transform">
+                              <FileText className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-medium text-slate-900 truncate">
+                                {artifact.title || "Synthesis Report"}
+                              </h4>
+                              <p className="text-xs text-slate-500 mt-1">
+                                {new Date(artifact.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Artifact Detail Modal (Same as Synthesis Lab) */}
+        {selectedArtifact && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col animate-in zoom-in-95">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 rounded-t-2xl">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-blue-600" />
+                    {selectedArtifact.title || "Synthesis Report"}
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Generated on {new Date(selectedArtifact.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedArtifact(null)}
+                  className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-500 hover:text-slate-900"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 prose prose-slate prose-blue max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {selectedArtifact.content}
+                </ReactMarkdown>
+              </div>
+              <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex justify-end">
+                <button
+                  onClick={() => setSelectedArtifact(null)}
+                  className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Dialog.Root open={editModalOpen} onOpenChange={setEditModalOpen}>
           <Dialog.Portal>
@@ -974,7 +1079,7 @@ function PaperCountBadge({ count }: { count: number | undefined }) {
   return (
     <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded-full border border-indigo-200">
       <FileText className="w-3.5 h-3.5" />
-      {count === undefined ? "—" : count}
+      {count === undefined ? 0 : count}
     </span>
   );
 }

@@ -6,12 +6,11 @@ import RegisterPage from "../pages/auth/RegisterPage";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { PaperDiscovery as DiscoveryPage } from "../pages/dashboard/DiscoveryPage";
 import { PaperDetailPage } from "../pages/dashboard/PaperDetailPage";
-import { Analytics as AnalyticsPage } from "../pages/dashboard/AnalyticsPage";
 import { Dashboard as HomePage } from "../pages/dashboard/HomePage";
 import { Settings as SettingsPage } from "../pages/dashboard/SettingsPage";
 import { ProfileSettings } from "../pages/dashboard/ProfileSettingsPage";
 import { NotificationSettings } from "../pages/dashboard/NotificationSettingsPage";
-import { Synthesis as SynthesisPage } from "../pages/dashboard/SynthesisPage";
+import { SynthesisLab as SynthesisPage } from "../pages/dashboard/SynthesisLabPage";
 import { Workspaces as WorkspacePage } from "../pages/dashboard/WorkspacePage";
 
 export default function AppRoutes() {
@@ -35,7 +34,6 @@ export default function AppRoutes() {
         <Route path="workspace" element={<WorkspacePage />} />
         <Route path="workspaces" element={<Navigate to="/workspace" replace />} />
         <Route path="synthesis" element={<SynthesisPage />} />
-        <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="settings/profile" element={<ProfileSettings />} />
         <Route path="settings/notifications" element={<NotificationSettings />} />
