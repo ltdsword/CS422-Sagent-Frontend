@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageCircle, X, Send, Sparkles, Minimize2, FolderOpen, Trash2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { TaskProgressBar } from "./TaskProgressBar";
 import { useTasks } from "../context/TaskContext";
 import { startProgressTracking, applyAgentProgress } from "../utils/demoTasks";
@@ -15,8 +15,20 @@ interface Message {
   workspaceId?: string;
 }
 
+function workspaceIdFromLocation(pathname: string, searchParams: URLSearchParams): string | undefined {
+  const onWorkspace =
+    pathname === "/workspace" || pathname.endsWith("/workspace");
+  if (!onWorkspace) {
+    return undefined;
+  }
+  const id = searchParams.get("id")?.trim();
+  return id && id.length > 0 ? id : undefined;
+}
+
 export function ChatBubble() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { addTask, updateTask, clearAllTasks } = useTasks();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -194,7 +206,12 @@ export function ChatBubble() {
     setIsTyping(true);
 
     try {
-      const res = await triggerAgentWorkflow({ prompt: query });
+      const workspace_id = workspaceIdFromLocation(location.pathname, searchParams);
+
+      const res = await triggerAgentWorkflow({
+        prompt: query,
+        ...(workspace_id ? { workspace_id } : {}),
+      });
 
       if (res.reply) {
         // Trivial conversational query — handled synchronously by backend LLM Fast-Path

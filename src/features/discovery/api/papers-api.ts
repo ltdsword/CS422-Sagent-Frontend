@@ -32,14 +32,30 @@ function normalizeAuthorsField(authors: unknown): Author[] {
 const LIBRARY_SEARCH_PATH =
   (import.meta.env.VITE_LIBRARY_PAPERS_PATH?.trim() || "/library/papers/") + "search/";
 
-function unwrapListPayload(payload: unknown): unknown[] {
-  if (Array.isArray(payload)) return payload;
-  if (payload && typeof payload === "object" && "results" in payload) {
-    const results = (payload as { results?: unknown }).results;
-    return Array.isArray(results) ? results : [];
+export type DiscoverySearchResult = {
+  papers: DiscoveryPaper[];
+  /** Total matches when the API returns `{ count, results }`; otherwise null. */
+  totalCount: number | null;
+};
+
+function parseSearchPayload(parsed: unknown): { rows: unknown[]; totalCount: number | null } {
+  if (Array.isArray(parsed)) {
+    return { rows: parsed, totalCount: null };
   }
-  // Some endpoints may return { count, results } or an array directly
-  return [];
+  if (parsed && typeof parsed === "object") {
+    const obj = parsed as Record<string, unknown>;
+    const results = obj.results;
+    const rows = Array.isArray(results) ? results : [];
+    let totalCount: number | null = null;
+    if (typeof obj.count === "number" && Number.isFinite(obj.count)) {
+      totalCount = obj.count;
+    } else if (typeof obj.count === "string") {
+      const n = Number(obj.count);
+      if (!Number.isNaN(n)) totalCount = n;
+    }
+    return { rows, totalCount };
+  }
+  return { rows: [], totalCount: null };
 }
 
 function normalizeFromLibrary(row: unknown): DiscoveryPaper | null {
@@ -66,14 +82,14 @@ function normalizeFromLibrary(row: unknown): DiscoveryPaper | null {
  * Perform a semantic search against the library search endpoint.
  * `params` should be the POST body accepted by the backend (query, filters, etc.)
  */
-export async function listDiscoveryPapers(params?: Record<string, unknown>): Promise<DiscoveryPaper[]> {
+export async function listDiscoveryPapers(params?: Record<string, unknown>): Promise<DiscoverySearchResult> {
   const { data } = await axiosInstance.post<string>(LIBRARY_SEARCH_PATH, params ?? {}, {
     responseType: "text",
     transformResponse: [(r) => r],
   });
   const rawText = typeof data === "string" ? data : String(data);
   const parsed = parseLibraryPaperJson(rawText);
-  const rows = unwrapListPayload(parsed) as unknown[];
+  const { rows, totalCount } = parseSearchPayload(parsed);
   const papers: DiscoveryPaper[] = [];
 
   for (const row of rows) {
@@ -81,5 +97,5 @@ export async function listDiscoveryPapers(params?: Record<string, unknown>): Pro
     if (normalized) papers.push(normalized);
   }
 
-  return papers;
+  return { papers, totalCount };
 }

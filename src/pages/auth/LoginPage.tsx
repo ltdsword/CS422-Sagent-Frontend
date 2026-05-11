@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2, LogIn, Sparkles } from "lucide-react";
+import { Loader2, KeyRound, Sparkles } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -114,7 +114,7 @@ export default function LoginPage() {
                     </>
                   ) : (
                     <>
-                      <LogIn className="h-4 w-4" />
+                      <KeyRound className="h-4 w-4" />
                       Sign in
                     </>
                   )}

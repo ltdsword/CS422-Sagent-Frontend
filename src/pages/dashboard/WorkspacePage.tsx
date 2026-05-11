@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FolderOpen,
-  LogIn,
+  KeyRound,
   Plus,
   FileText,
   Trash2,
@@ -162,17 +162,49 @@ export function Workspaces() {
   const [searchParams, setSearchParams] = useSearchParams();
   const workspaceIdFromUrl = searchParams.get("id");
 
+  /** Keep `?id=<uuid>` in sync when opening / leaving a workspace so deep links and the AI chat can read it. */
+  const selectWorkspace = useCallback(
+    (id: string | null) => {
+      setSelectedWorkspaceId(id);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (id) {
+            next.set("id", id);
+          } else {
+            next.delete("id");
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   const selectedWorkspace = useMemo(
     () => workspaces.find((w) => w.id === selectedWorkspaceId) ?? null,
     [workspaces, selectedWorkspaceId],
   );
 
   useEffect(() => {
-    if (workspaceIdFromUrl && workspaces.length > 0) {
-      setSelectedWorkspaceId(workspaceIdFromUrl);
-      // Clean up URL without triggering re-render if possible, or just leave it
+    if (!workspaceIdFromUrl || workspaces.length === 0) {
+      return;
     }
-  }, [workspaceIdFromUrl, workspaces]);
+    const exists = workspaces.some((w) => w.id === workspaceIdFromUrl);
+    if (exists) {
+      setSelectedWorkspaceId(workspaceIdFromUrl);
+    } else {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("id");
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  }, [workspaceIdFromUrl, workspaces, setSearchParams]);
 
   const paperCountForSelected = useMemo(() => {
     if (!selectedWorkspaceId) {
@@ -284,14 +316,14 @@ export function Workspaces() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      setSelectedWorkspaceId(null);
+      selectWorkspace(null);
       setCreateModalOpen(false);
       setEditModalOpen(false);
       setEditingWorkspace(null);
       setWorkspacePaperCounts({});
       setPaperRows([]);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, selectWorkspace]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -400,7 +432,7 @@ export function Workspaces() {
       await deleteWorkspace(workspaceId);
       appToast.success(`"${workspaceName}" deleted`);
       if (selectedWorkspaceId === workspaceId) {
-        setSelectedWorkspaceId(null);
+        selectWorkspace(null);
       }
       setWorkspacePaperCounts((prev) => {
         const next = { ...prev };
@@ -485,7 +517,7 @@ export function Workspaces() {
           <div className="max-w-7xl mx-auto">
             <button
               type="button"
-              onClick={() => setSelectedWorkspaceId(null)}
+              onClick={() => selectWorkspace(null)}
               className="flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -858,7 +890,7 @@ export function Workspaces() {
                 to="/login"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <LogIn className="w-4 h-4" />
+                <KeyRound className="w-4 h-4" />
                 Log in to create
               </Link>
             )}
@@ -894,7 +926,7 @@ export function Workspaces() {
                     to="/login"
                     className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    <LogIn className="w-4 h-4" />
+                    <KeyRound className="w-4 h-4" />
                     Log in
                   </Link>
                 </>
@@ -926,7 +958,7 @@ export function Workspaces() {
                       <tr
                         key={ws.id}
                         className="hover:bg-slate-50 transition-colors cursor-pointer"
-                        onClick={() => setSelectedWorkspaceId(ws.id)}
+                        onClick={() => selectWorkspace(ws.id)}
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -972,7 +1004,7 @@ export function Workspaces() {
                                   className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded cursor-pointer outline-none"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedWorkspaceId(ws.id);
+                                    selectWorkspace(ws.id);
                                   }}
                                 >
                                   Open workspace

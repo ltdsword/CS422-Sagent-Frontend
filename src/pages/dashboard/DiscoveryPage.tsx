@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Search,
@@ -10,6 +10,8 @@ import {
   X,
   CheckCircle,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Switch from "@radix-ui/react-switch";
@@ -33,7 +35,8 @@ export function PaperDiscovery() {
   const [author, setAuthor] = useState("");
   const [keywords, setKeywords] = useState("");
   const limit = 20;
-  const [searchBody, setSearchBody] = useState<Record<string, unknown> | undefined>(undefined);
+  const [page, setPage] = useState(0);
+  const [baseSearchBody, setBaseSearchBody] = useState<Record<string, unknown> | undefined>(undefined);
   const debounceRef = useRef<number | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -61,7 +64,25 @@ export function PaperDiscovery() {
     icml: false,
   });
 
-  const { data: papers, loading } = useDiscovery(searchBody);
+  const searchBody = useMemo(() => {
+    if (!baseSearchBody) {
+      return undefined;
+    }
+    return {
+      ...baseSearchBody,
+      limit,
+      offset: page * limit,
+    };
+  }, [baseSearchBody, limit, page]);
+
+  const { data: papers, totalCount, loading } = useDiscovery(searchBody);
+
+  const hasNextPage =
+    totalCount !== null && totalCount !== undefined
+      ? (page + 1) * limit < totalCount
+      : (papers?.length ?? 0) === limit;
+
+  const hasPrevPage = page > 0;
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -198,13 +219,14 @@ export function PaperDiscovery() {
     return body;
   };
 
-  // Debounce search body updates
+  // Debounce filter updates (reset to first page when criteria change)
   useEffect(() => {
     if (debounceRef.current) {
       window.clearTimeout(debounceRef.current);
     }
     debounceRef.current = window.setTimeout(() => {
-      setSearchBody(buildSearchBody());
+      setPage(0);
+      setBaseSearchBody(buildSearchBody());
     }, 350);
 
     return () => {
@@ -351,10 +373,51 @@ export function PaperDiscovery() {
 
             {/* Results Feed */}
             <div className="max-w-5xl mx-auto p-6">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
                 <p className="text-sm text-slate-600">
-                  Found {(papers ?? []).length} papers matching your criteria
+                  {totalCount != null ? (
+                    <>
+                      Showing{" "}
+                      <span className="font-medium text-slate-800">
+                        {papers?.length ? page * limit + 1 : 0}
+                        {papers?.length ? `–${page * limit + papers.length}` : ""}
+                      </span>{" "}
+                      of <span className="font-medium text-slate-800">{totalCount}</span> papers
+                    </>
+                  ) : (
+                    <>
+                      {papers?.length ? (
+                        <>
+                          Page <span className="font-medium text-slate-800">{page + 1}</span> ·{" "}
+                          <span className="font-medium text-slate-800">{papers.length}</span> papers
+                          {hasNextPage ? " (more may be available)" : ""}
+                        </>
+                      ) : (
+                        "No papers match your criteria"
+                      )}
+                    </>
+                  )}
                 </p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={!hasPrevPage || loading}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" aria-hidden />
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!hasNextPage || loading}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 border border-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                  >
+                    Next page
+                    <ChevronRight className="w-4 h-4" aria-hidden />
+                  </button>
+                </div>
               </div>
 
               <div className="max-w-5xl">

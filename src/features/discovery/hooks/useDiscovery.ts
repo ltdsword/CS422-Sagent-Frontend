@@ -4,6 +4,7 @@ import { listDiscoveryPapers } from "../api/papers-api";
 
 export function useDiscovery(params?: Record<string, unknown>) {
   const [data, setData] = useState<DiscoveryPaper[] | null>(null);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -20,11 +21,13 @@ export function useDiscovery(params?: Record<string, unknown>) {
         body = undefined;
       }
 
-      const papers = await listDiscoveryPapers(body);
+      const { papers, totalCount: count } = await listDiscoveryPapers(body);
       setData(papers);
+      setTotalCount(count);
     } catch (err) {
       setError(err as Error);
       setData([]);
+      setTotalCount(null);
     } finally {
       setLoading(false);
     }
@@ -41,5 +44,5 @@ export function useDiscovery(params?: Record<string, unknown>) {
     };
   }, [fetch]);
 
-  return { data, loading, error, refetch: fetch } as const;
+  return { data, totalCount, loading, error, refetch: fetch } as const;
 }
