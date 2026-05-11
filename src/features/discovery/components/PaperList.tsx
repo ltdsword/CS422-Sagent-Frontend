@@ -13,9 +13,9 @@ export default function PaperList({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       {papers.map((p) => (
-        <PaperCard key={p.id} paper={p} onAddToWorkspace={onAddToWorkspace} />
+        <PaperCard key={p.id} paper={p} layout="block" onAddToWorkspace={onAddToWorkspace} />
       ))}
     </div>
   );

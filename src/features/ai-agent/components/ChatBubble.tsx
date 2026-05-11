@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { MessageCircle, X, Send, Sparkles, Minimize2, FolderOpen, Trash2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { TaskProgressBar } from "./TaskProgressBar";
 import { useTasks } from "../context/TaskContext";
 import { startProgressTracking, applyAgentProgress } from "../utils/demoTasks";
 import { triggerAgentWorkflow, fetchChatHistory, saveChatMessage, clearChatHistory, fetchActiveTask } from "../api/agentApi";
 import { useTaskPolling } from "../hooks/useTaskPolling";
+import { parseWorkspaceIdFromPathname } from "../utils/workspace-from-route";
 
 interface Message {
   id: string;
@@ -17,6 +18,11 @@ interface Message {
 
 export function ChatBubble() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const routeWorkspaceId = useMemo(
+    () => parseWorkspaceIdFromPathname(location.pathname),
+    [location.pathname],
+  );
   const { addTask, updateTask, clearAllTasks } = useTasks();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -104,7 +110,11 @@ export function ChatBubble() {
 
       const result     = response.result || {};
       const artifactId = response.artifact_id ?? result.artifact_id;
-      const wsId       = response.workspace_id ?? result.workspace_id;
+      const wsId =
+        response.workspace_id ??
+        result.workspace_id ??
+        (response as { workspaceId?: string }).workspaceId ??
+        (result as { workspaceId?: string }).workspaceId;
       const papersAdded = response.papers_added ?? result.papers_added ?? 0;
       const draft      = result.synthesis_draft || "";
       const summaryPreview = response.summary_preview ?? result.summary_preview ?? "";
@@ -194,7 +204,10 @@ export function ChatBubble() {
     setIsTyping(true);
 
     try {
-      const res = await triggerAgentWorkflow({ prompt: query });
+      const res = await triggerAgentWorkflow({
+        prompt: query,
+        ...(routeWorkspaceId ? { workspace_id: routeWorkspaceId } : {}),
+      });
 
       if (res.reply) {
         // Trivial conversational query — handled synchronously by backend LLM Fast-Path
@@ -284,7 +297,7 @@ export function ChatBubble() {
                     <button
                       onClick={() => {
                         setIsOpen(false);
-                        navigate(`/workspace?id=${message.workspaceId}`);
+                        navigate(`/workspace/${encodeURIComponent(message.workspaceId)}`);
                       }}
                       className="mt-3 w-full py-2 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold border border-blue-200 hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
                     >

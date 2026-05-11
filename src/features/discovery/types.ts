@@ -15,3 +15,19 @@ export type DiscoveryPaper = {
 };
 
 export type RawPaperRecord = Record<string, unknown>;
+
+/** Paginated search response from `POST /library/papers/search/`. */
+export type DiscoverySearchMeta = {
+  count: number;
+  total_count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+};
+
+export type DiscoverySearchPage = {
+  papers: DiscoveryPaper[];
+  meta: DiscoverySearchMeta;
+};

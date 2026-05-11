@@ -42,7 +42,7 @@ export const useTaskPolling = (taskId: string | null, callbacks?: PollingCallbac
             callbacks?.onProgress?.(response.current_agent);
           }
           // Detect first appearance of a workspace_id
-          const wsId: string = response.workspace_id || "";
+          const wsId = (response.workspace_id ?? response.workspaceId ?? "").trim();
           if (wsId && wsId !== lastWorkspaceId.current) {
             lastWorkspaceId.current = wsId;
             callbacks?.onWorkspaceCreated?.(wsId);

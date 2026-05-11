@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Lock, Save, User as UserIcon, LogIn } from "lucide-react";
+import { ArrowLeft, Loader2, Lock, Save, User as UserIcon, KeyRound } from "lucide-react";
 import { Toaster } from "sonner";
 import { isAxiosError } from "axios";
 
@@ -180,14 +180,14 @@ export function ProfileSettings() {
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
-            <LogIn className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <KeyRound className="w-12 h-12 text-slate-300 mx-auto mb-4" />
             <h1 className="text-slate-900 mb-2">Log in to manage your profile</h1>
             <p className="text-slate-600 mb-6">Update your username, email, and password.</p>
             <Link
               to="/login"
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <LogIn className="w-4 h-4" />
+              <KeyRound className="w-4 h-4" />
               Log in
             </Link>
           </div>

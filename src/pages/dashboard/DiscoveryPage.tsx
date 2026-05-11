@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Search,
@@ -25,6 +25,13 @@ import { getApiErrorMessage } from "@/features/workspaces/utils/api-error";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { appToast } from "@/shared/utils/toast-prefs";
 
+const VENUE_OPTIONS = [
+  { id: "arxiv", label: "arXiv" },
+  { id: "semanticScholar", label: "Semantic Scholar" },
+  { id: "nips", label: "NIPS/NeurIPS" },
+  { id: "icml", label: "ICML" },
+] as const;
+
 export function PaperDiscovery() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -32,9 +39,9 @@ export function PaperDiscovery() {
   const [query, setQuery] = useState("");
   const [author, setAuthor] = useState("");
   const [keywords, setKeywords] = useState("");
-  const limit = 20;
-  const [searchBody, setSearchBody] = useState<Record<string, unknown> | undefined>(undefined);
-  const debounceRef = useRef<number | null>(null);
+  const pageSize = 10;
+  const [page, setPage] = useState(1);
+  const prevDebouncedFilterKey = useRef<string | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
@@ -47,13 +54,6 @@ export function PaperDiscovery() {
   const [workspacesLoading, setWorkspacesLoading] = useState(false);
   const [addingWorkspaceId, setAddingWorkspaceId] = useState<string | null>(null);
 
-  const VENUE_OPTIONS = [
-    { id: 'arxiv', label: 'arXiv' },
-    { id: 'semanticScholar', label: 'Semantic Scholar' },
-    { id: 'nips', label: 'NIPS/NeurIPS' },
-    { id: 'icml', label: 'ICML' },
-  ];
-
   const [selectedVenues, setSelectedVenues] = useState({
     arxiv: false,
     semanticScholar: false,
@@ -61,7 +61,62 @@ export function PaperDiscovery() {
     icml: false,
   });
 
-  const { data: papers, loading } = useDiscovery(searchBody);
+  const buildFilterPayload = useCallback((): Record<string, unknown> => {
+    const venues = VENUE_OPTIONS.filter((v) => selectedVenues[v.id as keyof typeof selectedVenues]).map(
+      (v) => v.label,
+    );
+
+    const body: Record<string, unknown> = {
+      query: query.trim() || null,
+      start_year: dateRange[0],
+      end_year: dateRange[1],
+      venues: venues.length > 0 ? venues : undefined,
+      author: author.trim() || null,
+      keywords: keywords.trim() || null,
+    };
+
+    if (!body.query) {
+      body.sort_by = "year";
+    }
+
+    Object.keys(body).forEach((k) => {
+      if (body[k] === undefined) delete body[k];
+    });
+    return body;
+  }, [query, author, keywords, dateRange, selectedVenues]);
+
+  const filterKey = useMemo(() => JSON.stringify(buildFilterPayload()), [buildFilterPayload]);
+
+  const [debouncedFilterKey, setDebouncedFilterKey] = useState(filterKey);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedFilterKey(filterKey), 350);
+    return () => window.clearTimeout(id);
+  }, [filterKey]);
+
+  useEffect(() => {
+    if (prevDebouncedFilterKey.current === null) {
+      prevDebouncedFilterKey.current = debouncedFilterKey;
+      return;
+    }
+    if (debouncedFilterKey !== prevDebouncedFilterKey.current) {
+      prevDebouncedFilterKey.current = debouncedFilterKey;
+      setPage(1);
+    }
+  }, [debouncedFilterKey]);
+
+  const searchBody = useMemo((): Record<string, unknown> => {
+    let filters: Record<string, unknown> = {};
+    try {
+      filters = debouncedFilterKey ? (JSON.parse(debouncedFilterKey) as Record<string, unknown>) : {};
+    } catch {
+      filters = {};
+    }
+    // `limit` mirrors `page_size` for backends that still read `limit` (API legacy alias).
+    return { ...filters, page, page_size: pageSize, limit: pageSize };
+  }, [debouncedFilterKey, page, pageSize]);
+
+  const { data: papers, meta, loading, error } = useDiscovery(searchBody);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -176,42 +231,12 @@ export function PaperDiscovery() {
     setSelectedVenues(prev => ({ ...prev, [venue]: !prev[venue] }));
   };
 
-  // Build API body from UI state
-  const buildSearchBody = () => {
-    const venues = VENUE_OPTIONS.filter((v) => selectedVenues[v.id as keyof typeof selectedVenues]).map((v) => v.label);
-
-    const body: Record<string, unknown> = {
-      query: query.trim() || null,
-      limit,
-      start_year: dateRange[0],
-      end_year: dateRange[1],
-      venues: venues.length > 0 ? venues : undefined,
-      author: author.trim() || null,
-      keywords: keywords.trim() || null,
-    };
-
-    if (!body.query) {
-      body.sort_by = 'year';
-    }
-
-    Object.keys(body).forEach((k) => (body[k] === undefined ? delete body[k] : null));
-    return body;
-  };
-
-  // Debounce search body updates
-  useEffect(() => {
-    if (debounceRef.current) {
-      window.clearTimeout(debounceRef.current);
-    }
-    debounceRef.current = window.setTimeout(() => {
-      setSearchBody(buildSearchBody());
-    }, 350);
-
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, author, keywords, dateRange, JSON.stringify(selectedVenues), limit]);
+  const rangeLabel = useMemo(() => {
+    if (!meta || meta.total_count === 0 || meta.count === 0) return null;
+    const start = (meta.page - 1) * meta.page_size + 1;
+    const end = start + meta.count - 1;
+    return `${start}–${end}`;
+  }, [meta]);
 
   return (
     <>
@@ -350,14 +375,61 @@ export function PaperDiscovery() {
             </div>
 
             {/* Results Feed */}
-            <div className="max-w-5xl mx-auto p-6">
-              <div className="flex items-center justify-between mb-6">
-                <p className="text-sm text-slate-600">
-                  Found {(papers ?? []).length} papers matching your criteria
-                </p>
+            <div className="max-w-6xl mx-auto p-6">
+              <div className="mb-6 rounded-xl border border-slate-200/80 bg-white/70 backdrop-blur-sm p-4 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-slate-700">
+                    {loading ? (
+                      <span>Loading results…</span>
+                    ) : meta ? (
+                      <span>
+                        <span className="font-medium text-slate-900">{meta.total_count}</span>{" "}
+                        {meta.total_count === 1 ? "paper" : "papers"} found
+                        {rangeLabel ? (
+                          <span className="text-slate-600">
+                            {" "}
+                            · showing <span className="tabular-nums">{rangeLabel}</span>
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : (
+                      <span className="text-slate-600">Adjust filters or enter a search query.</span>
+                    )}
+                  </div>
+                  {meta && meta.total_count > 0 ? (
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                      <span className="tabular-nums">
+                        Page {meta.page} of {Math.max(meta.total_pages, 1)}
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={loading || !meta.has_previous}
+                          onClick={() => setPage((p) => p - 1)}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loading || !meta.has_next}
+                          onClick={() => setPage((p) => p + 1)}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                {error ? (
+                  <p className="mt-3 text-sm text-red-600 border-t border-red-100 pt-3">
+                    {getApiErrorMessage(error, "Search failed")}
+                  </p>
+                ) : null}
               </div>
 
-              <div className="max-w-5xl">
+              <div className="max-w-6xl">
                 {loading ? (
                   <div className="py-6 text-center text-slate-600">Loading papers...</div>
                 ) : (

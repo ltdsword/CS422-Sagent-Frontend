@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DiscoveryPaper } from "../types";
-import { listDiscoveryPapers } from "../api/papers-api";
+import type { DiscoveryPaper, DiscoverySearchMeta } from "../types";
+import { searchDiscoveryPapers } from "../api/papers-api";
+
+const emptyMeta = (): DiscoverySearchMeta => ({
+  count: 0,
+  total_count: 0,
+  page: 1,
+  page_size: 10,
+  total_pages: 0,
+  has_next: false,
+  has_previous: false,
+});
 
 export function useDiscovery(params?: Record<string, unknown>) {
   const [data, setData] = useState<DiscoveryPaper[] | null>(null);
+  const [meta, setMeta] = useState<DiscoverySearchMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -20,11 +31,13 @@ export function useDiscovery(params?: Record<string, unknown>) {
         body = undefined;
       }
 
-      const papers = await listDiscoveryPapers(body);
+      const { papers, meta: nextMeta } = await searchDiscoveryPapers(body);
       setData(papers);
+      setMeta(nextMeta);
     } catch (err) {
       setError(err as Error);
       setData([]);
+      setMeta(emptyMeta());
     } finally {
       setLoading(false);
     }
@@ -41,5 +54,5 @@ export function useDiscovery(params?: Record<string, unknown>) {
     };
   }, [fetch]);
 
-  return { data, loading, error, refetch: fetch } as const;
+  return { data, meta, loading, error, refetch: fetch } as const;
 }

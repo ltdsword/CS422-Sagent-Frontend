@@ -6,7 +6,7 @@ import {
   Settings as SettingsIcon,
   Compass,
   LogOut,
-  LogIn,
+  KeyRound,
   User,
 } from "lucide-react";
 import { ChatBubble } from "../features/ai-agent/components/ChatBubble";
@@ -93,7 +93,7 @@ export default function DashboardLayout() {
                 className="p-2 hover:bg-slate-100 rounded-lg shrink-0 text-slate-700 hover:text-blue-600 transition-colors"
                 title="Sign in"
               >
-                <LogIn className="h-4 w-4" />
+                <KeyRound className="h-4 w-4" />
               </Link>
             )}
           </div>

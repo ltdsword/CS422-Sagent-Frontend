@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   FolderOpen,
-  LogIn,
+  KeyRound,
   Plus,
   FileText,
   Trash2,
@@ -136,13 +136,13 @@ function buildPaperRows(
 export function Workspaces() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { workspaceId: workspaceIdParam } = useParams<{ workspaceId?: string }>();
+  const selectedWorkspaceId = workspaceIdParam ?? null;
 
   const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
   const [workspacePaperCounts, setWorkspacePaperCounts] = useState<Record<string, number>>({});
   const [listLoading, setListLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
-
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [paperRows, setPaperRows] = useState<WorkspacePaperRow[]>([]);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -159,20 +159,32 @@ export function Workspaces() {
   const [workspaceArtifacts, setWorkspaceArtifacts] = useState<any[]>([]);
   const [artifactsLoading, setArtifactsLoading] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState<any | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const workspaceIdFromUrl = searchParams.get("id");
+  const [searchParams] = useSearchParams();
 
   const selectedWorkspace = useMemo(
     () => workspaces.find((w) => w.id === selectedWorkspaceId) ?? null,
     [workspaces, selectedWorkspaceId],
   );
 
+  /** Legacy deep links: `/workspace?id=` → `/workspace/:workspaceId` */
   useEffect(() => {
-    if (workspaceIdFromUrl && workspaces.length > 0) {
-      setSelectedWorkspaceId(workspaceIdFromUrl);
-      // Clean up URL without triggering re-render if possible, or just leave it
+    const legacyId = searchParams.get("id");
+    if (!legacyId?.trim()) {
+      return;
     }
-  }, [workspaceIdFromUrl, workspaces]);
+    navigate(`/workspace/${encodeURIComponent(legacyId.trim())}`, { replace: true });
+  }, [searchParams, navigate]);
+
+  useEffect(() => {
+    if (listLoading || !workspaceIdParam || workspaces.length === 0) {
+      return;
+    }
+    const exists = workspaces.some((w) => w.id === workspaceIdParam);
+    if (!exists) {
+      appToast.message("Workspace not found");
+      navigate("/workspace", { replace: true });
+    }
+  }, [listLoading, workspaceIdParam, workspaces, navigate]);
 
   const paperCountForSelected = useMemo(() => {
     if (!selectedWorkspaceId) {
@@ -284,14 +296,16 @@ export function Workspaces() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      setSelectedWorkspaceId(null);
+      if (workspaceIdParam) {
+        navigate("/workspace", { replace: true });
+      }
       setCreateModalOpen(false);
       setEditModalOpen(false);
       setEditingWorkspace(null);
       setWorkspacePaperCounts({});
       setPaperRows([]);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, workspaceIdParam, navigate]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -350,6 +364,7 @@ export function Workspaces() {
       setNewWorkspaceDescription("");
       setCreateModalOpen(false);
       await refreshWorkspaceList();
+      navigate(`/workspace/${encodeURIComponent(created.id)}`, { replace: true });
     } catch (err) {
       appToast.error(getApiErrorMessage(err, "Could not create workspace"));
     }
@@ -400,7 +415,7 @@ export function Workspaces() {
       await deleteWorkspace(workspaceId);
       appToast.success(`"${workspaceName}" deleted`);
       if (selectedWorkspaceId === workspaceId) {
-        setSelectedWorkspaceId(null);
+        navigate("/workspace", { replace: true });
       }
       setWorkspacePaperCounts((prev) => {
         const next = { ...prev };
@@ -485,7 +500,7 @@ export function Workspaces() {
           <div className="max-w-7xl mx-auto">
             <button
               type="button"
-              onClick={() => setSelectedWorkspaceId(null)}
+              onClick={() => navigate("/workspace")}
               className="flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -858,7 +873,7 @@ export function Workspaces() {
                 to="/login"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <LogIn className="w-4 h-4" />
+                <KeyRound className="w-4 h-4" />
                 Log in to create
               </Link>
             )}
@@ -894,7 +909,7 @@ export function Workspaces() {
                     to="/login"
                     className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    <LogIn className="w-4 h-4" />
+                    <KeyRound className="w-4 h-4" />
                     Log in
                   </Link>
                 </>
@@ -926,7 +941,7 @@ export function Workspaces() {
                       <tr
                         key={ws.id}
                         className="hover:bg-slate-50 transition-colors cursor-pointer"
-                        onClick={() => setSelectedWorkspaceId(ws.id)}
+                        onClick={() => navigate(`/workspace/${encodeURIComponent(ws.id)}`)}
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -972,7 +987,7 @@ export function Workspaces() {
                                   className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded cursor-pointer outline-none"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedWorkspaceId(ws.id);
+                                    navigate(`/workspace/${encodeURIComponent(ws.id)}`);
                                   }}
                                 >
                                   Open workspace

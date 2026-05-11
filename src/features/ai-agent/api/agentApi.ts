@@ -1,8 +1,19 @@
 import axiosInstance from "../../../shared/utils/axios-instance";
 
+/** POST `/ai/generate/` — backend expects snake_case `workspace_id` when scoping to a workspace. */
 export interface ResearchRequest {
   workspace_id?: string;
   prompt: string;
+}
+
+function buildGenerateBody(payload: ResearchRequest): { prompt: string; workspace_id?: string } {
+  const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
+  const ws = payload.workspace_id?.trim();
+  const body: { prompt: string; workspace_id?: string } = { prompt };
+  if (ws) {
+    body.workspace_id = ws;
+  }
+  return body;
 }
 
 export interface ResearchResponse {
@@ -21,6 +32,8 @@ export interface TaskStatusResponse {
   status: string;
   current_agent?: string;
   workspace_id?: string;
+  /** Some stacks echo camelCase; prefer `workspace_id` when both exist. */
+  workspaceId?: string;
   artifact_id?: string;
   papers_added?: number;
   summary_preview?: string;
@@ -29,7 +42,7 @@ export interface TaskStatusResponse {
 }
 
 export const triggerAgentWorkflow = async (data: ResearchRequest): Promise<ResearchResponse> => {
-  const response = await axiosInstance.post("/ai/generate/", data);
+  const response = await axiosInstance.post("/ai/generate/", buildGenerateBody(data));
   return response.data;
 };
 
@@ -66,7 +79,8 @@ export const fetchAllArtifacts = async (): Promise<any[]> => {
 };
 
 export const fetchWorkspaceArtifacts = async (workspaceId: string): Promise<any[]> => {
-  const response = await axiosInstance.get(`/ai/artifacts/?workspace_id=${workspaceId}`);
+  const qs = new URLSearchParams({ workspace_id: String(workspaceId) });
+  const response = await axiosInstance.get(`/ai/artifacts/?${qs.toString()}`);
   return response.data;
 };
 

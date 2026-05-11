@@ -179,6 +179,12 @@ export function SynthesisLab() {
     }
   }, [isAuthenticated]);
 
+  const clearActivityFeed = useCallback(() => {
+    setActivities([]);
+    setSelectedActivity(null);
+    setActivitiesLoading(false);
+  }, []);
+
   useEffect(() => {
     void loadArtifacts();
     void loadActivities();
@@ -298,11 +304,12 @@ export function SynthesisLab() {
               <h2 className="text-slate-900">Recent Agent Activity</h2>
               {activitiesLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
             </div>
-            <button 
-              onClick={() => void loadActivities()}
+            <button
+              type="button"
+              onClick={clearActivityFeed}
               className="text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
-              Refresh Feed
+              Clear feed
             </button>
           </div>
           
