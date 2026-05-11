@@ -23,6 +23,7 @@ export interface TaskStatusResponse {
   workspace_id?: string;
   artifact_id?: string;
   papers_added?: number;
+  summary_preview?: string;
   result?: any;
   error?: string;
 }
@@ -34,6 +35,11 @@ export const triggerAgentWorkflow = async (data: ResearchRequest): Promise<Resea
 
 export const checkTaskStatus = async (taskId: string): Promise<TaskStatusResponse> => {
   const response = await axiosInstance.get(`/ai/tasks/${taskId}/status/`);
+  return response.data;
+};
+
+export const fetchActiveTask = async (): Promise<{ task_id: string | null }> => {
+  const response = await axiosInstance.get("/ai/active-task/");
   return response.data;
 };
 
@@ -64,7 +70,11 @@ export const fetchWorkspaceArtifacts = async (workspaceId: string): Promise<any[
   return response.data;
 };
 
-export const fetchAgentActivities = async (): Promise<any[]> => {
+export const fetchAgentActivities = async (): Promise<{ activities: any[], workspaces: any[], paperCounts: Record<string, number> }> => {
   const response = await axiosInstance.get("/ai/activity/");
   return response.data;
+};
+
+export const clearChatHistory = async (): Promise<void> => {
+  await axiosInstance.delete("/ai/chat/");
 };

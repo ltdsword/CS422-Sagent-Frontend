@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Sparkles, Minimize2, FolderOpen } from "lucide-react";
+import { MessageCircle, X, Send, Sparkles, Minimize2, FolderOpen, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { TaskProgressBar } from "./TaskProgressBar";
 import { useTasks } from "../context/TaskContext";
 import { startProgressTracking, applyAgentProgress } from "../utils/demoTasks";
-import { triggerAgentWorkflow, fetchChatHistory, saveChatMessage } from "../api/agentApi";
+import { triggerAgentWorkflow, fetchChatHistory, saveChatMessage, clearChatHistory, fetchActiveTask } from "../api/agentApi";
 import { useTaskPolling } from "../hooks/useTaskPolling";
 
 interface Message {
@@ -46,9 +46,13 @@ export function ChatBubble() {
   }, []);
 
   useEffect(() => {
-    const loadHistory = async () => {
+    const loadState = async () => {
       try {
-        const history = await fetchChatHistory();
+        const [history, activeTaskData] = await Promise.all([
+          fetchChatHistory(),
+          fetchActiveTask().catch(() => ({ task_id: null }))
+        ]);
+
         if (history && history.length > 0) {
           const loadedMessages: Message[] = history.map((msg: any) => ({
             id: msg.id?.toString() || Date.now().toString() + Math.random(),
@@ -58,11 +62,17 @@ export function ChatBubble() {
           }));
           setMessages(loadedMessages);
         }
+
+        if (activeTaskData?.task_id) {
+          setActiveTaskId(activeTaskData.task_id);
+          uiTaskIdRef.current = activeTaskData.task_id;
+        }
+
       } catch (err) {
-        console.error("Failed to fetch chat history:", err);
+        console.error("Failed to load chat state:", err);
       }
     };
-    loadHistory();
+    loadState();
   }, []);
 
   // Single poller — handles SUCCESS, FAILURE, and PROCESSING progress updates
@@ -82,6 +92,7 @@ export function ChatBubble() {
     },
     onSuccess: (response) => {
       setActiveTaskId(null);
+      window.dispatchEvent(new CustomEvent("sagent:activity-poll-stop"));
       if (uiTaskIdRef.current) {
         updateTask(uiTaskIdRef.current, {
           status: "completed",
@@ -96,18 +107,14 @@ export function ChatBubble() {
       const wsId       = response.workspace_id ?? result.workspace_id;
       const papersAdded = response.papers_added ?? result.papers_added ?? 0;
       const draft      = result.synthesis_draft || "";
+      const summaryPreview = response.summary_preview ?? result.summary_preview ?? "";
       let preview = "Generated synthesis draft.";
-      if (draft) {
-        // Try to extract the Quick Summary section if it exists
-        const quickSummaryMatch = draft.match(/## Quick summary[^]*?(?=---|\n## )/i);
-        if (quickSummaryMatch && quickSummaryMatch[0]) {
-          preview = quickSummaryMatch[0].trim();
-        } else {
-        // Use a much larger preview limit to avoid truncation
-        preview = draft.slice(0, 5000);
-        if (draft.length > 5000) preview += "…";
+      if (summaryPreview) {
+        preview = summaryPreview.trim();
+      } else if (draft) {
+        const firstLine = draft.split("\n").find((line: string) => line.trim().length > 0) || "";
+        preview = firstLine.trim();
       }
-    }
 
       if (artifactId && wsId) {
         // Deep-link to the workspace that contains the artifact
@@ -129,12 +136,23 @@ export function ChatBubble() {
           `✅ Agent Process is complete!\n\n` +
           `${preview}`
         );
+      } else if (wsId) {
+        pushMessage(
+          `✅ Agent Process is complete!\n\n` +
+          (preview ? `${preview}\n\n` : "") +
+          `A new workspace was found/created. Click below to view it:`,
+          "agent",
+          wsId
+        );
       } else {
-        pushMessage("✅ Agent Process is complete!");
+        pushMessage(
+          `✅ Agent Process is complete!` + (preview ? `\n\n${preview}` : "")
+        );
       }
     },
     onError: (error) => {
       setActiveTaskId(null);
+      window.dispatchEvent(new CustomEvent("sagent:activity-poll-stop"));
       clearAllTasks();
       uiTaskIdRef.current = null;
       pushMessage(`❌ The agent pipeline encountered an error:\n\n${error}\n\nPlease try again or rephrase your request.`);
@@ -146,8 +164,26 @@ export function ChatBubble() {
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (isOpen) {
+      setTimeout(() => scrollToBottom(), 50);
+    } else {
+      scrollToBottom();
+    }
+  }, [messages, isOpen]);
+
+  const handleClearChat = async () => {
+    try {
+      await clearChatHistory();
+      setMessages([{
+        id: "1",
+        text: "Hello! I'm your Sagent AI research assistant. Chat history cleared.",
+        sender: "agent",
+        timestamp: new Date()
+      }]);
+    } catch (err) {
+      console.error("Failed to clear chat:", err);
+    }
+  };
 
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
@@ -168,6 +204,7 @@ export function ChatBubble() {
         pushMessage("I've started working on your request. The agents are now running — I'll update you here when they're done.");
         // Create the initial UI task entry (no polling inside)
         uiTaskIdRef.current = startProgressTracking(addTask);
+        window.dispatchEvent(new CustomEvent("sagent:activity-poll-start"));
         setActiveTaskId(res.task_id);
       }
     } catch (e: any) {
@@ -203,6 +240,9 @@ export function ChatBubble() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={handleClearChat} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title="Clear Chat">
+                <Trash2 className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => setIsOpen(false)}
                 className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
