@@ -297,7 +297,7 @@ export function ChatBubble() {
                     <button
                       onClick={() => {
                         setIsOpen(false);
-                        navigate(`/workspace/${encodeURIComponent(message.workspaceId)}`);
+                        navigate(`/workspace/${encodeURIComponent(message.workspaceId || '')}`);
                       }}
                       className="mt-3 w-full py-2 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold border border-blue-200 hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
                     >
